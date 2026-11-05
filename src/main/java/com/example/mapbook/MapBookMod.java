@@ -27,7 +27,29 @@ public class MapBookMod implements ModInitializer {
     }
 
     @Override
-    public void onInitialize() {
+    public void onInitialize(import net.fabricmc.fabric.api.event.player.UseItemCallback;
+import net.minecraft.world.InteractionResult;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
+
+// 在 onInitialize() 方法内部添加：
+UseItemCallback.EVENT.register((player, level, hand) -> {
+    ItemStack stack = player.getItemInHand(hand);
+    if (!stack.is(MapBookMod.MAP_BOOK)) {
+        return InteractionResult.PASS; // 不是地图册，放行
+    }
+
+    // 只在服务端执行给予逻辑，避免重复
+    if (!level.isClientSide()) {
+        player.addItem(new ItemStack(Items.MAP));
+        player.sendSystemMessage(
+            Component.translatable("item.mapbook.map_book.used")
+        );
+    }
+
+    // 返回 SUCCESS 让客户端播放挥手动画，同时服务端完成给予
+    return InteractionResult.SUCCESS;
+});) {
         // 类名、包路径、方法名均已更新
         CreativeModeTabEvents.modifyOutputEvent(CreativeModeTabs.TOOLS_AND_UTILITIES)
                 .register(entries -> entries.accept(MAP_BOOK));
