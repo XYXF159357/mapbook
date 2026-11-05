@@ -1,10 +1,12 @@
 package com.example.mapbook;
 
 import net.fabricmc.api.ModInitializer;
-import net.fabricmc.fabric.api.itemgroup.v1.ItemGroupEvents;
+import net.fabricmc.fabric.api.creativetab.v1.CreativeModeTabEvents;
 import net.minecraft.core.Registry;
 import net.minecraft.core.registries.BuiltInRegistries;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.core.registries.Registries;
+import net.minecraft.resources.Identifier;
+import net.minecraft.resources.ResourceKey;
 import net.minecraft.world.item.CreativeModeTabs;
 import net.minecraft.world.item.Item;
 
@@ -12,24 +14,22 @@ public class MapBookMod implements ModInitializer {
 
     public static final String MOD_ID = "mapbook";
 
-    // 在 26.3 中，物品注册必须带上 useItemPrefixedTranslationKey() 和 registryKey
-    public static final Item MAP_BOOK = Registry.register(
-            BuiltInRegistries.ITEM,
-            ResourceLocation.fromNamespaceAndPath(MOD_ID, "map_book"),
-            new MapBookItem(new Item.Properties()
-                    .stacksTo(1)
-                    .useItemPrefixedTranslationKey()
-                    .registryKey(net.minecraft.resources.ResourceKey.create(
-                            net.minecraft.core.registries.Registries.ITEM,
-                            ResourceLocation.fromNamespaceAndPath(MOD_ID, "map_book")
-                    ))
-            )
-    );
+    public static final Item MAP_BOOK = register("map_book", Item::new, new Item.Properties().stacksTo(1));
+
+    public static <T extends Item> T register(String name, java.util.function.Function<Item.Properties, T> itemFactory, Item.Properties settings) {
+        // 26.3 标准写法：先创建 ResourceKey，再用 setId 绑定
+        ResourceKey<Item> itemKey = ResourceKey.create(
+                Registries.ITEM,
+                Identifier.fromNamespaceAndPath(MOD_ID, name)
+        );
+        T item = itemFactory.apply(settings.setId(itemKey));
+        return Registry.register(BuiltInRegistries.ITEM, itemKey, item);
+    }
 
     @Override
     public void onInitialize() {
-        // 把物品加入创造模式物品栏的“工具与实用物品”页
-        ItemGroupEvents.modifyEntriesEvent(CreativeModeTabs.TOOLS_AND_UTILITIES)
+        // 类名、包路径、方法名均已更新
+        CreativeModeTabEvents.modifyOutputEvent(CreativeModeTabs.TOOLS_AND_UTILITIES)
                 .register(entries -> entries.accept(MAP_BOOK));
     }
 }
