@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "id": "mapbook",
+  "version": "1.0.0",
+  "name": "Map Book",
+  "description": "一个简单的地图册模组，右键获得地图。",
+  "authors": ["YourName"],
+  "contact": {},
+  "license": "MIT",
+  "icon": "assets/mapbook/icon.png",
+  "environment": "*",
+  "entrypoints": {
+    "main": ["com.example.mapbook.MapBookMod"]
+  },
+  "depends": {
+    "fabricloader": ">=0.19.5",
+    "minecraft": "26.3",
+    "fabric-api": ">=0.165.2+26.3"
+  }
+}
