@@ -17,6 +17,7 @@ public class MapBookItem extends Item {
 
     @Override
     public InteractionResult use(Level level, Player player, InteractionHand hand) {
+        System.out.println("!!! MapBook use() called, side: " + (level.isClientSide() ? "CLIENT" : "SERVER"));
         if (!level.isClientSide()) {
             player.addItem(new ItemStack(Items.MAP));
             player.sendSystemMessage(Component.translatable("item.mapbook.map_book.used"));
