@@ -10,7 +10,7 @@
   "icon": "assets/mapbook/icon.png",
   "environment": "*",
   "entrypoints": {
-    "main": ["com.example.mapbook.MapBookMod"]
+    "main": ["com.example.mapbook.MapBookMod"],
     "client": [  "com.example.mapbook.client.MapBookClient"
 ]
   },
