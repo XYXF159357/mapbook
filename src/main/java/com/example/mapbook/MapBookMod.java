@@ -51,7 +51,7 @@ public class MapBookMod implements ModInitializer {
     @Override
     public void onInitialize() {
         // 【新增 1】注册 S2C 网络包
-        PayloadTypeRegistry.playS2C().register(MapBookOpenPayload.ID, MapBookOpenPayload.CODEC);
+        PayloadTypeRegistry.clientboundPlay().register(MapBookOpenPayload.ID, MapBookOpenPayload.CODEC);
 
         // 加入创造模式物品栏
         CreativeModeTabEvents.modifyOutputEvent(CreativeModeTabs.TOOLS_AND_UTILITIES)
