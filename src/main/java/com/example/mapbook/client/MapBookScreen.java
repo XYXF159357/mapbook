@@ -3,14 +3,13 @@ package com.example.mapbook.client;
 import com.example.mapbook.MapBookOpenPayload;
 import com.mojang.blaze3d.platform.InputConstants;
 import com.mojang.blaze3d.platform.NativeImage;
-import com.mojang.blaze3d.systems.RenderSystem; // 确保导入
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.input.MouseButtonEvent;
 import net.minecraft.client.renderer.RenderPipelines;
-import net.minecraft.client.renderer.texture.AbstractTexture;
+import net.minecraft.client.texture.AbstractTexture; // ✅ 关键修正：包路径去掉 .renderer
 import net.minecraft.client.renderer.texture.DynamicTexture;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.network.chat.Component;
@@ -128,10 +127,8 @@ public class MapBookScreen extends Screen {
         Identifier textureId = Identifier.fromNamespaceAndPath("mapbook", "dynamic/map_" + mapId.id());
         Minecraft.getInstance().getTextureManager().register(textureId, texture);
 
-        // 关键修正：通过 RenderSystem 提交到渲染线程，并尝试 (true, false) 参数
-        RenderSystem.recordRenderCall(() -> {
-            ((AbstractTexture) texture).setFilter(true, false);
-        });
+        // ✅ 直接调用 setFilter，无需 RenderSystem.recordRenderCall
+        ((AbstractTexture) texture).setFilter(false, false);
 
         bakedTextures.put(mapId, textureId);
         dynamicTextures.put(mapId, texture);
