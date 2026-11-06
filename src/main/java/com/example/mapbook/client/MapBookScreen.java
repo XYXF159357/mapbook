@@ -127,8 +127,8 @@ public class MapBookScreen extends Screen {
         Identifier textureId = Identifier.fromNamespaceAndPath("mapbook", "dynamic/map_" + mapId.id());
         Minecraft.getInstance().getTextureManager().register(textureId, texture);
 
-        // 关键：通过父类 AbstractTexture 设置最近邻过滤，不依赖 FilterMode
-        ((AbstractTexture) texture).setFilter(false, false);
+        // 改用 setBlurMipmap，与 setFilter 等价，但方法名更稳定
+        ((AbstractTexture) texture).setBlurMipmap(false, false);
 
         bakedTextures.put(mapId, textureId);
         dynamicTextures.put(mapId, texture);
