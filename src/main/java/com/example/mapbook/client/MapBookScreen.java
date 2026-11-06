@@ -3,14 +3,14 @@ package com.example.mapbook.client;
 import com.example.mapbook.MapBookOpenPayload;
 import com.mojang.blaze3d.platform.InputConstants;
 import com.mojang.blaze3d.platform.NativeImage;
-import com.mojang.blaze3d.systems.RenderSystem;
+import com.mojang.blaze3d.systems.RenderSystem; // 新增导入
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.input.MouseButtonEvent;
 import net.minecraft.client.renderer.RenderPipelines;
-import net.minecraft.client.renderer.texture.AbstractTexture;
+import net.minecraft.client.renderer.texture.AbstractTexture; // 新增导入
 import net.minecraft.client.renderer.texture.DynamicTexture;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.network.chat.Component;
@@ -128,10 +128,10 @@ public class MapBookScreen extends Screen {
         Identifier textureId = Identifier.fromNamespaceAndPath("mapbook", "dynamic/map_" + mapId.id());
         Minecraft.getInstance().getTextureManager().register(textureId, texture);
 
-        // 关键修正：提交到渲染线程设置 Nearest 过滤
-        RenderSystem.recordRenderCall(() ->
-                ((AbstractTexture) texture).setFilter(false, false)
-        );
+        // 关键：通过 RenderSystem 将过滤设置提交到渲染线程
+        RenderSystem.recordRenderCall(() -> {
+            ((AbstractTexture) texture).setFilter(false, false);
+        });
 
         bakedTextures.put(mapId, textureId);
         dynamicTextures.put(mapId, texture);
