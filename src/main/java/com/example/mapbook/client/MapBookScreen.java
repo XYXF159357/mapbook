@@ -56,8 +56,6 @@ public class MapBookScreen extends Screen {
         addRenderableWidget(zoomOutButton);
     }
 
-    // ---------- 拖动（26.3 新签名）----------
-
     @Override
     public boolean mouseClicked(MouseButtonEvent event, boolean doubleClick) {
         if (super.mouseClicked(event, doubleClick)) {
@@ -92,80 +90,91 @@ public class MapBookScreen extends Screen {
         return super.mouseReleased(event);
     }
 
-    // ---------- 渲染（保持不变）----------
-
     @Override
     public void extractRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float delta) {
         super.extractRenderState(graphics, mouseX, mouseY, delta);
 
-        graphics.text(this.font, this.title, this.width / 2 - this.font.width(this.title) / 2, 10, 0xFFFFFF);
+        graphics.text(this.font, this.title,
+                this.width / 2 - this.font.width(this.title) / 2, 10, 0xFFFFFF);
 
         if (maps.isEmpty()) {
             Component empty = Component.translatable("screen.mapbook.empty");
-            graphics.text(this.font, empty, this.width / 2 - this.font.width(empty) / 2,
-                    this.height / 2, 0xAAAAAA);
+            graphics.text(this.font, empty,
+                    this.width / 2 - this.font.width(empty) / 2, this.height / 2, 0xAAAAAA);
             return;
         }
 
-        List<MapRenderEntry> entries = new ArrayList<>();
-        int minX = Integer.MAX_VALUE, maxX = Integer.MIN_VALUE;
-        int minZ = Integer.MAX_VALUE, maxZ = Integer.MIN_VALUE;
-
+        // 收集地图数据
+        List<MapItemSavedData> dataList = new ArrayList<>();
         for (ItemStack stack : maps) {
             if (!stack.is(Items.FILLED_MAP)) continue;
             MapId mapId = stack.get(DataComponents.MAP_ID);
             if (mapId == null || this.minecraft == null || this.minecraft.level == null) continue;
             MapItemSavedData data = MapItem.getSavedData(mapId, this.minecraft.level);
-            if (data == null) continue;
-
-            entries.add(new MapRenderEntry(data));
-            minX = Math.min(minX, data.centerX);
-            maxX = Math.max(maxX, data.centerX);
-            minZ = Math.min(minZ, data.centerZ);
-            maxZ = Math.max(maxZ, data.centerZ);
+            if (data != null) dataList.add(data);
         }
 
-        if (entries.isEmpty()) return;
+        if (dataList.isEmpty()) return;
 
-        double worldCenterX = (minX + maxX) / 2.0;
-        double worldCenterZ = (minZ + maxZ) / 2.0;
-        double basePixelsPerBlock = 1.0;
+        // 检查是否所有地图坐标完全相同
+        boolean allCoordsSame = true;
+        if (dataList.size() > 1) {
+            MapItemSavedData first = dataList.get(0);
+            for (int i = 1; i < dataList.size(); i++) {
+                MapItemSavedData d = dataList.get(i);
+                if (d.centerX != first.centerX || d.centerZ != first.centerZ) {
+                    allCoordsSame = false;
+                    break;
+                }
+            }
+        }
 
         graphics.enableScissor(0, 25, this.width, this.height - 40);
 
-        graphics.pose().pushMatrix();
-        graphics.pose().translate((float)(this.width / 2 + offsetX), (float)(this.height / 2 + offsetY));
-        graphics.pose().scale((float) scale, (float) scale);
+        if (allCoordsSame) {
+            // === 兜底：坐标全部相同 → 网格排列 ===
+            int cols = (int) Math.ceil(Math.sqrt(dataList.size()));
+            int rows = (int) Math.ceil((double) dataList.size() / cols);
 
-        for (MapRenderEntry entry : entries) {
-            System.out.println("!!! Render map: centerX=" + entry.data().centerX + " centerZ=" + entry.data().centerZ);
-            MapItemSavedData data = entry.data;
-            double relX = data.centerX - worldCenterX;
-            double relZ = data.centerZ - worldCenterZ;
-            double halfSizePx = 64 * basePixelsPerBlock;
-            double centerPxX = relX * basePixelsPerBlock;
-            double centerPxY = relZ * basePixelsPerBlock;
+            for (int i = 0; i < dataList.size(); i++) {
+                int row = i / cols;
+                int col = i % cols;
 
-            int drawX = (int)(centerPxX - halfSizePx);
-            int drawY = (int)(centerPxY - halfSizePx);
-            int sizePx = (int)(128 * basePixelsPerBlock);
+                // 每格间距 140 像素（地图本身 128 + 12 间隙）
+                double gridX = (col - (cols - 1) / 2.0) * 140;
+                double gridY = (row - (rows - 1) / 2.0) * 140;
 
-            int color = 0xFF000000 | (data.centerX * 31 + data.centerZ * 17) & 0xFFFFFF;
-            graphics.fill(drawX, drawY, drawX + sizePx, drawY + sizePx, color);
-            graphics.outline(drawX, drawY, sizePx, sizePx, 0xFFFFFFFF);
-        }
+                double screenCenterX = this.width / 2.0 + offsetX + gridX * scale;
+                double screenCenterY = this.height / 2.0 + offsetY + gridY * scale;
 
-        graphics.pose().popMatrix();
-        graphics.disableScissor();
+                double halfSize = 64.0 * scale;
+                int drawX = (int)(screenCenterX - halfSize);
+                int drawY = (int)(screenCenterY - halfSize);
+                int drawSize = (int)(128.0 * scale);
 
-        Component zoomText = Component.literal("缩放: " + String.format("%.0f%%", scale * 100));
-        graphics.text(this.font, zoomText, 10, this.height - 25, 0xCCCCCC);
-    }
+                // 用索引生成颜色，保证每张地图颜色不同
+                int color = 0xFF000000 | ((i * 67 + 100) & 0xFFFFFF);
+                graphics.fill(drawX, drawY, drawX + drawSize, drawY + drawSize, color);
+                graphics.outline(drawX, drawY, drawSize, drawSize, 0xFFFFFFFF);
+            }
+        } else {
+            // === 正常：按世界坐标拼接 ===
+            int minX = Integer.MAX_VALUE, maxX = Integer.MIN_VALUE;
+            int minZ = Integer.MAX_VALUE, maxZ = Integer.MIN_VALUE;
+            for (MapItemSavedData d : dataList) {
+                minX = Math.min(minX, d.centerX);
+                maxX = Math.max(maxX, d.centerX);
+                minZ = Math.min(minZ, d.centerZ);
+                maxZ = Math.max(maxZ, d.centerZ);
+            }
+            double worldCenterX = (minX + maxX) / 2.0;
+            double worldCenterZ = (minZ + maxZ) / 2.0;
 
-    @Override
-    public boolean isPauseScreen() {
-        return false;
-    }
+            for (MapItemSavedData d : dataList) {
+                double relX = d.centerX - worldCenterX;
+                double relZ = d.centerZ - worldCenterZ;
 
-    private record MapRenderEntry(MapItemSavedData data) {}
-}
+                double screenCenterX = this.width / 2.0 + offsetX + relX * scale;
+                double screenCenterY = this.height / 2.0 + offsetY + relZ * scale;
+
+                double halfSize = 64.0
