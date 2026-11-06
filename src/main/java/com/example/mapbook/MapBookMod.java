@@ -71,7 +71,7 @@ public class MapBookMod implements ModInitializer {
                 }
 
                 ItemStack offhand = player.getOffhandItem();
-                MinecraftServer server = serverPlayer.getServer();
+                MinecraftServer server = serverPlayer.level().getServer();
                 if (server == null) return InteractionResult.PASS;
 
                 if (offhand.is(Items.FILLED_MAP)) {
