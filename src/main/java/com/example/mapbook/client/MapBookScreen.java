@@ -66,7 +66,6 @@ public class MapBookScreen extends Screen {
         addRenderableWidget(zoomOutButton);
     }
 
-    /** 把每张地图烘焙成 128×128 的 DynamicTexture（仅执行一次） */
     private void bakeAllMapTextures() {
         if (this.minecraft == null || this.minecraft.level == null) return;
 
@@ -84,15 +83,14 @@ public class MapBookScreen extends Screen {
                 for (int x = 0; x < 128; x++) {
                     byte colorId = data.colors[x + y * 128];
                     if (colorId == 0) {
-                        image.setColor(x, y, 0); // 透明
+                        image.setPixelRGBA(x, y, 0);
                     } else {
                         int argb = MapColor.getColorFromPackedId(colorId);
-                        // 关键：ARGB 转 ABGR，因为 setColor 期望 ABGR 格式
-                        int abgr = ((argb & 0xFF) << 24) |     // Alpha
-                                   ((argb & 0xFF00) << 8) |    // Blue
-                                   ((argb & 0xFF0000) >> 8) |  // Green
-                                   ((argb >> 24) & 0xFF);      // Red
-                        image.setColor(x, y, abgr); // 使用 setColor
+                        int abgr = ((argb & 0xFF) << 24) |
+                                   ((argb & 0xFF00) << 8) |
+                                   ((argb & 0xFF0000) >> 8) |
+                                   ((argb >> 24) & 0xFF);
+                        image.setPixelRGBA(x, y, abgr);
                     }
                 }
             }
