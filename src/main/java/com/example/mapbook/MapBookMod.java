@@ -80,6 +80,8 @@ public class MapBookMod implements ModInitializer {
                     }
                     maps.add(offhand.copy());
                     bookStack.set(MAP_LIST, maps);
+                    // 临时调试日志
+                    System.out.println("!!! Stored maps size = " + maps.size());
                     offhand.shrink(1);
                     player.sendSystemMessage(Component.translatable("item.mapbook.map_book.stored"));
                 } else {
