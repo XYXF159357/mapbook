@@ -9,6 +9,7 @@
   "item.mapbook.map_book.invalid": "无法读取该地图的数据。",
   "item.mapbook.map_book.wrong_scale": "只能存入默认大小的地图。",
   "item.mapbook.map_book.duplicate": "地图册里已经有这张地图了。",
-  "item.mapbook.map_book.different_dimension": "地图册里的地图必须来自同一个维度。"
+  "item.mapbook.map_book.different_dimension": "地图册里的地图必须来自同一个维度。",
+  "item.mapbook.map_book.duplicate_position": "该位置已经有一张地图了。"
 }
 
