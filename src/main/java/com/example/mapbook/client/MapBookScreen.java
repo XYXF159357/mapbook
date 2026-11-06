@@ -2,28 +2,22 @@ package com.example.mapbook.client;
 
 import com.example.mapbook.MapBookOpenPayload;
 import com.mojang.blaze3d.platform.InputConstants;
-import com.mojang.blaze3d.vertex.PoseStack;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.input.MouseButtonEvent;
-import net.minecraft.client.renderer.MapRenderer;
-import net.minecraft.client.renderer.SubmitNodeCollector;
-import net.minecraft.client.renderer.state.MapRenderState;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.item.MapItem;
+import net.minecraft.world.level.material.MapColor;
 import net.minecraft.world.level.saveddata.maps.MapId;
 import net.minecraft.world.level.saveddata.maps.MapItemSavedData;
 
-import java.lang.reflect.Field;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 
 public class MapBookScreen extends Screen {
 
@@ -43,12 +37,6 @@ public class MapBookScreen extends Screen {
     private Button zoomInButton;
     private Button zoomOutButton;
 
-    private final Map<MapId, MapRenderState> renderStateCache = new HashMap<>();
-    private MapRenderer mapRenderer;
-    private SubmitNodeCollector nodeCollector; // 反射获取的收集器
-
-    private static final double UPDATE_RADIUS = 512.0;
-
     public MapBookScreen(List<ItemStack> maps, List<MapBookOpenPayload.MapCoord> coords) {
         super(Component.translatable("screen.mapbook.title"));
         this.maps = maps;
@@ -58,7 +46,6 @@ public class MapBookScreen extends Screen {
     @Override
     protected void init() {
         super.init();
-        this.mapRenderer = Minecraft.getInstance().getMapRenderer();
         centerOnPlayer();
 
         int buttonY = this.height - 30;
@@ -73,37 +60,6 @@ public class MapBookScreen extends Screen {
 
         addRenderableWidget(zoomInButton);
         addRenderableWidget(zoomOutButton);
-    }
-
-    /** 尝试从 GuiGraphicsExtractor 中反射获取 SubmitNodeCollector */
-    private SubmitNodeCollector extractNodeCollector(GuiGraphicsExtractor graphics) {
-        if (nodeCollector != null) return nodeCollector;
-        // 尝试常见字段名；不同映射可能略有差异
-        String[] candidateFields = {"submitNodeCollector", "nodeCollector", "collector", "guiRenderState"};
-        for (String fieldName : candidateFields) {
-            try {
-                Field field = GuiGraphicsExtractor.class.getDeclaredField(fieldName);
-                field.setAccessible(true);
-                Object value = field.get(graphics);
-                if (value instanceof SubmitNodeCollector collector) {
-                    nodeCollector = collector;
-                    return collector;
-                }
-                // 如果字段是 GuiRenderState，尝试从中提取
-                if (value != null) {
-                    try {
-                        Field subField = value.getClass().getDeclaredField("submitNodeCollector");
-                        subField.setAccessible(true);
-                        Object sub = subField.get(value);
-                        if (sub instanceof SubmitNodeCollector collector) {
-                            nodeCollector = collector;
-                            return collector;
-                        }
-                    } catch (Exception ignored) {}
-                }
-            } catch (Exception ignored) {}
-        }
-        return null;
     }
 
     private void centerOnPlayer() {
@@ -190,9 +146,6 @@ public class MapBookScreen extends Screen {
             return;
         }
 
-        // 尝试获取 SubmitNodeCollector（首次调用时反射获取，之后复用）
-        SubmitNodeCollector collector = extractNodeCollector(graphics);
-
         List<GridMap> gridMaps = new ArrayList<>();
         int minGridX = Integer.MAX_VALUE, maxGridX = Integer.MIN_VALUE;
         int minGridZ = Integer.MAX_VALUE, maxGridZ = Integer.MIN_VALUE;
@@ -213,11 +166,6 @@ public class MapBookScreen extends Screen {
         double gridCenterX = (minGridX + maxGridX + 128) / 2.0;
         double gridCenterZ = (minGridZ + maxGridZ + 128) / 2.0;
 
-        double playerX = this.minecraft != null && this.minecraft.player != null
-                ? this.minecraft.player.getX() : 0;
-        double playerZ = this.minecraft != null && this.minecraft.player != null
-                ? this.minecraft.player.getZ() : 0;
-
         graphics.enableScissor(0, 25, this.width, this.height - 40);
 
         for (GridMap gm : gridMaps) {
@@ -234,42 +182,15 @@ public class MapBookScreen extends Screen {
 
             ItemStack mapStack = maps.get(gm.index);
             MapId mapId = mapStack.get(DataComponents.MAP_ID);
-            if (mapId == null || this.minecraft == null || this.minecraft.level == null) {
-                drawPlaceholder(graphics, gm, drawX, drawY, drawSize);
-                continue;
+
+            MapItemSavedData mapData = null;
+            if (mapId != null && this.minecraft != null && this.minecraft.level != null) {
+                mapData = MapItem.getSavedData(mapId, this.minecraft.level);
             }
 
-            MapItemSavedData mapData = MapItem.getSavedData(mapId, this.minecraft.level);
-            if (mapData == null) {
-                drawPlaceholder(graphics, gm, drawX, drawY, drawSize);
-                continue;
-            }
-
-            // 提取渲染状态（带缓存与邻近更新优化）
-            boolean nearPlayer = Math.abs(mapData.centerX - playerX) < UPDATE_RADIUS
-                    && Math.abs(mapData.centerZ - playerZ) < UPDATE_RADIUS;
-            MapRenderState renderState = renderStateCache.get(mapId);
-            if (renderState == null || nearPlayer) {
-                renderState = new MapRenderState();
-                mapRenderer.extractRenderState(mapId, mapData, renderState);
-                renderStateCache.put(mapId, renderState);
-            }
-
-            // 方案一核心：直接调用 MapRenderer.render
-            if (collector != null && mapRenderer != null) {
-                try {
-                    PoseStack poseStack = graphics.pose();
-                    poseStack.pushPose();
-                    poseStack.translate(drawX, drawY, 0);
-                    poseStack.scale((float) drawSize / 128f, (float) drawSize / 128f, 1.0f);
-                    mapRenderer.render(renderState, poseStack, collector, true, 0xF000F0);
-                    poseStack.popPose();
-                } catch (Throwable t) {
-                    // 渲染失败时回退到占位色块，避免崩溃
-                    drawPlaceholder(graphics, gm, drawX, drawY, drawSize);
-                }
+            if (mapData != null) {
+                drawMapPixels(graphics, mapData, drawX, drawY, drawSize);
             } else {
-                // 无法获取 SubmitNodeCollector 时回退
                 drawPlaceholder(graphics, gm, drawX, drawY, drawSize);
             }
         }
@@ -278,6 +199,28 @@ public class MapBookScreen extends Screen {
 
         Component zoomText = Component.literal("缩放: " + String.format("%.0f%%", scale * 100));
         graphics.text(this.font, zoomText, 10, this.height - 25, 0xCCCCCC);
+    }
+
+    /** 逐像素绘制地图纹理（方案二） */
+    private void drawMapPixels(GuiGraphicsExtractor graphics, MapItemSavedData mapData,
+                               int drawX, int drawY, int drawSize) {
+        if (drawSize < 1) return;
+
+        int pixelSize = Math.max(1, drawSize / 128);
+        int offsetX = drawX + (drawSize - 128 * pixelSize) / 2;
+        int offsetY = drawY + (drawSize - 128 * pixelSize) / 2;
+
+        for (int py = 0; py < 128; py++) {
+            for (int px = 0; px < 128; px++) {
+                byte colorId = mapData.colors[px + py * 128];
+                if (colorId == 0) continue; // 透明像素跳过
+
+                int argb = MapColor.getColorFromPackedId(colorId);
+                int x1 = offsetX + px * pixelSize;
+                int y1 = offsetY + py * pixelSize;
+                graphics.fill(x1, y1, x1 + pixelSize, y1 + pixelSize, argb);
+            }
+        }
     }
 
     private void drawPlaceholder(GuiGraphicsExtractor graphics, GridMap gm, int drawX, int drawY, int drawSize) {
