@@ -76,7 +76,7 @@ graphics.text(this.font, Component.translatable("screen.mapbook.empty"),
         MapId mapId = currentMap.get(DataComponents.MAP_ID);
         if (mapId == null || this.minecraft == null || this.minecraft.level == null) return;
 
-        MapItemSavedData mapData = this.minecraft.level.getMapData(mapId);
+        MapItemSavedData mapData = MapItem.getSavedData(mapId, this.minecraft.level);
         if (mapData == null) return;
 
         int size = 160;
