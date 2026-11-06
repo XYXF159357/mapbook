@@ -84,15 +84,14 @@ public class MapBookScreen extends Screen {
                 for (int x = 0; x < 128; x++) {
                     byte colorId = data.colors[x + y * 128];
                     if (colorId == 0) {
-                        image.setColor(x, y, 0); // 关键修改：setPixelRGBA → setColor
+                        image.setColorArgb(x, y, 0); // 透明像素
                     } else {
                         int argb = MapColor.getColorFromPackedId(colorId);
-                        image.setColor(x, y, argb); // 关键修改：setPixelRGBA → setColor
+                        image.setColorArgb(x, y, argb); // 关键修改：setColor → setColorArgb
                     }
                 }
             }
 
-            // 关键修改：DynamicTexture 构造函数需要 Supplier<String> 标签
             DynamicTexture texture = new DynamicTexture(() -> "mapbook_map_" + mapId.id(), image);
             Identifier textureId = Identifier.fromNamespaceAndPath(
                     "mapbook", "dynamic/map_" + mapId.id());
