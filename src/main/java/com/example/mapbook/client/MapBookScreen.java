@@ -58,9 +58,7 @@ public class MapBookScreen extends Screen {
 
     @Override
     public boolean mouseClicked(MouseButtonEvent event, boolean doubleClick) {
-        if (super.mouseClicked(event, doubleClick)) {
-            return true;
-        }
+        if (super.mouseClicked(event, doubleClick)) return true;
         if (event.buttonInfo().button() == InputConstants.MOUSE_BUTTON_LEFT) {
             dragging = true;
             dragStartX = event.x();
@@ -104,88 +102,53 @@ public class MapBookScreen extends Screen {
             return;
         }
 
-        // 收集所有地图数据
-        List<MapItemSavedData> dataList = new ArrayList<>();
+        // 收集地图数据 + 计算对齐后的网格左边界
+        List<GridMap> gridMaps = new ArrayList<>();
+        int minGridX = Integer.MAX_VALUE, maxGridX = Integer.MIN_VALUE;
+        int minGridZ = Integer.MAX_VALUE, maxGridZ = Integer.MIN_VALUE;
+
         for (ItemStack stack : maps) {
             if (!stack.is(Items.FILLED_MAP)) continue;
             MapId mapId = stack.get(DataComponents.MAP_ID);
             if (mapId == null || this.minecraft == null || this.minecraft.level == null) continue;
             MapItemSavedData data = MapItem.getSavedData(mapId, this.minecraft.level);
-            if (data != null) dataList.add(data);
+            if (data == null) continue;
+
+            // 关键：把地图左边界对齐到最近的 128 格网格
+            int gridLeftX = Math.floorDiv(data.centerX - 64, 128) * 128;
+            int gridLeftZ = Math.floorDiv(data.centerZ - 64, 128) * 128;
+
+            gridMaps.add(new GridMap(data, gridLeftX, gridLeftZ));
+            minGridX = Math.min(minGridX, gridLeftX);
+            maxGridX = Math.max(maxGridX, gridLeftX);
+            minGridZ = Math.min(minGridZ, gridLeftZ);
+            maxGridZ = Math.max(maxGridZ, gridLeftZ);
         }
 
-        if (dataList.isEmpty()) return;
+        if (gridMaps.isEmpty()) return;
 
-        // 判断所有地图是否坐标完全相同
-        boolean allCoordsSame = true;
-        if (dataList.size() > 1) {
-            MapItemSavedData first = dataList.get(0);
-            for (int i = 1; i < dataList.size(); i++) {
-                MapItemSavedData d = dataList.get(i);
-                if (d.centerX != first.centerX || d.centerZ != first.centerZ) {
-                    allCoordsSame = false;
-                    break;
-                }
-            }
-        }
+        // 网格范围的中心（左边界 + 128 = 中心点）
+        double gridCenterX = (minGridX + maxGridX + 128) / 2.0;
+        double gridCenterZ = (minGridZ + maxGridZ + 128) / 2.0;
 
         graphics.enableScissor(0, 25, this.width, this.height - 40);
 
-        if (allCoordsSame) {
-            // === 兜底：坐标全相同 → 无缝网格排列 ===
-            int cols = (int) Math.ceil(Math.sqrt(dataList.size()));
-            int rows = (int) Math.ceil((double) dataList.size() / cols);
+        for (GridMap gm : gridMaps) {
+            // 相对网格中心的偏移（格），换算成屏幕像素（缩放后）
+            double relX = gm.gridLeftX + 64 - gridCenterX;
+            double relZ = gm.gridLeftZ + 64 - gridCenterZ;
 
-            for (int i = 0; i < dataList.size(); i++) {
-                int row = i / cols;
-                int col = i % cols;
+            double screenCenterX = this.width / 2.0 + offsetX + relX * scale;
+            double screenCenterY = this.height / 2.0 + offsetY + relZ * scale;
 
-                // 关键修改：间距 = 128，紧贴无缝
-                double gridX = (col - (cols - 1) / 2.0) * 128;
-                double gridY = (row - (rows - 1) / 2.0) * 128;
+            double halfSize = 64.0 * scale;
+            int drawX = (int)(screenCenterX - halfSize);
+            int drawY = (int)(screenCenterY - halfSize);
+            int drawSize = (int)(128.0 * scale);
 
-                double screenCenterX = this.width / 2.0 + offsetX + gridX * scale;
-                double screenCenterY = this.height / 2.0 + offsetY + gridY * scale;
-
-                double halfSize = 64.0 * scale;
-                int drawX = (int)(screenCenterX - halfSize);
-                int drawY = (int)(screenCenterY - halfSize);
-                int drawSize = (int)(128.0 * scale);
-
-                int color = 0xFF000000 | ((i * 67 + 100) & 0xFFFFFF);
-                graphics.fill(drawX, drawY, drawX + drawSize, drawY + drawSize, color);
-                graphics.outline(drawX, drawY, drawSize, drawSize, 0xFFFFFFFF);
-            }
-        } else {
-            // === 正常：按真实世界坐标拼接，空缺位置自动留白 ===
-            int minX = Integer.MAX_VALUE, maxX = Integer.MIN_VALUE;
-            int minZ = Integer.MAX_VALUE, maxZ = Integer.MIN_VALUE;
-            for (MapItemSavedData d : dataList) {
-                minX = Math.min(minX, d.centerX);
-                maxX = Math.max(maxX, d.centerX);
-                minZ = Math.min(minZ, d.centerZ);
-                maxZ = Math.max(maxZ, d.centerZ);
-            }
-            double worldCenterX = (minX + maxX) / 2.0;
-            double worldCenterZ = (minZ + maxZ) / 2.0;
-
-            for (MapItemSavedData d : dataList) {
-                // 相对世界中心的偏移（世界格 = 屏幕上 128 格的边长）
-                double relX = d.centerX - worldCenterX;
-                double relZ = d.centerZ - worldCenterZ;
-
-                double screenCenterX = this.width / 2.0 + offsetX + relX * scale;
-                double screenCenterY = this.height / 2.0 + offsetY + relZ * scale;
-
-                double halfSize = 64.0 * scale;
-                int drawX = (int)(screenCenterX - halfSize);
-                int drawY = (int)(screenCenterY - halfSize);
-                int drawSize = (int)(128.0 * scale);
-
-                int color = 0xFF000000 | ((d.centerX * 31 + d.centerZ * 17) & 0xFFFFFF);
-                graphics.fill(drawX, drawY, drawX + drawSize, drawY + drawSize, color);
-                graphics.outline(drawX, drawY, drawSize, drawSize, 0xFFFFFFFF);
-            }
+            int color = 0xFF000000 | ((gm.gridLeftX * 31 + gm.gridLeftZ * 17) & 0xFFFFFF);
+            graphics.fill(drawX, drawY, drawX + drawSize, drawY + drawSize, color);
+            graphics.outline(drawX, drawY, drawSize, drawSize, 0xFFFFFFFF);
         }
 
         graphics.disableScissor();
@@ -198,4 +161,6 @@ public class MapBookScreen extends Screen {
     public boolean isPauseScreen() {
         return false;
     }
+
+    private record GridMap(MapItemSavedData data, int gridLeftX, int gridLeftZ) {}
 }
