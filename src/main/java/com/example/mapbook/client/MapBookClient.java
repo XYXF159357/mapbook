@@ -21,7 +21,7 @@ public class MapBookClient implements ClientModInitializer {
                 List<ItemStack> maps = held.get(MapBookMod.MAP_LIST);
                 if (maps == null || maps.isEmpty()) return;
 
-                context.client().setScreen(new MapBookScreen(maps));
+                context.client().gui.setScreen(new MapBookScreen(maps));
             });
         });
     }
