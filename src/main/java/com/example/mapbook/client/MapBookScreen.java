@@ -40,9 +40,9 @@ public class MapBookScreen extends Screen {
     private Button zoomInButton;
     private Button zoomOutButton;
 
+    // 性能优化：缓存地图渲染状态，只更新玩家附近的地图
     private final Map<MapId, MapRenderState> renderStateCache = new HashMap<>();
     private MapRenderer mapRenderer;
-
     private static final double UPDATE_RADIUS = 512.0;
 
     public MapBookScreen(List<ItemStack> maps, List<MapBookOpenPayload.MapCoord> coords) {
@@ -71,6 +71,7 @@ public class MapBookScreen extends Screen {
         addRenderableWidget(zoomOutButton);
     }
 
+    /** 打开 GUI 时，把玩家最近的地图居中显示 */
     private void centerOnPlayer() {
         if (this.minecraft == null || this.minecraft.player == null || coords.isEmpty()) return;
 
@@ -194,48 +195,36 @@ public class MapBookScreen extends Screen {
             int drawY = (int)(screenCenterY - halfSize);
             int drawSize = (int)(128.0 * scale);
 
+            // --- 地图画面绘制部分（暂时回退为占位色块，等待 26.3 正确的 GUI 渲染 API）---
             ItemStack mapStack = maps.get(gm.index);
             MapId mapId = mapStack.get(DataComponents.MAP_ID);
-            if (mapId == null || this.minecraft == null || this.minecraft.level == null) {
-                drawPlaceholder(graphics, gm, drawX, drawY, drawSize);
-                continue;
+
+            // 即便不渲染，也保留缓存更新逻辑，为后续恢复渲染做准备
+            if (mapId != null && this.minecraft != null && this.minecraft.level != null) {
+                MapItemSavedData mapData = MapItem.getSavedData(mapId, this.minecraft.level);
+                if (mapData != null) {
+                    boolean nearPlayer = Math.abs(mapData.centerX - playerX) < UPDATE_RADIUS
+                            && Math.abs(mapData.centerZ - playerZ) < UPDATE_RADIUS;
+
+                    MapRenderState renderState = renderStateCache.get(mapId);
+                    if (renderState == null || nearPlayer) {
+                        renderState = new MapRenderState();
+                        mapRenderer.extractRenderState(mapId, mapData, renderState);
+                        renderStateCache.put(mapId, renderState);
+                    }
+                }
             }
 
-            MapItemSavedData mapData = MapItem.getSavedData(mapId, this.minecraft.level);
-            if (mapData == null) {
-                drawPlaceholder(graphics, gm, drawX, drawY, drawSize);
-                continue;
-            }
-
-            boolean nearPlayer = Math.abs(mapData.centerX - playerX) < UPDATE_RADIUS
-                    && Math.abs(mapData.centerZ - playerZ) < UPDATE_RADIUS;
-
-            MapRenderState renderState = renderStateCache.get(mapId);
-            if (renderState == null || nearPlayer) {
-                renderState = new MapRenderState();
-                mapRenderer.extractRenderState(mapId, mapData, renderState);
-                renderStateCache.put(mapId, renderState);
-            }
-
-            graphics.pose().pushMatrix();
-            graphics.pose().translate((float) drawX, (float) drawY);
-            graphics.pose().scale((float) drawSize / 128f, (float) drawSize / 128f);
-            graphics.submitMapRenderState(renderState); // 直接调用，无需强制转换
-            graphics.pose().popMatrix();
-
-            graphics.outline(drawX, drawY, drawSize, drawSize, 0x40FFFFFF);
+            // 绘制占位色块（保证界面正常可用）
+            int color = 0xFF000000 | ((gm.gridLeftX * 31 + gm.gridLeftZ * 17 + gm.index * 67) & 0xFFFFFF);
+            graphics.fill(drawX, drawY, drawX + drawSize, drawY + drawSize, color);
+            graphics.outline(drawX, drawY, drawSize, drawSize, 0xFFFFFFFF);
         }
 
         graphics.disableScissor();
 
         Component zoomText = Component.literal("缩放: " + String.format("%.0f%%", scale * 100));
         graphics.text(this.font, zoomText, 10, this.height - 25, 0xCCCCCC);
-    }
-
-    private void drawPlaceholder(GuiGraphicsExtractor graphics, GridMap gm, int drawX, int drawY, int drawSize) {
-        int color = 0xFF000000 | ((gm.gridLeftX * 31 + gm.gridLeftZ * 17 + gm.index * 67) & 0xFFFFFF);
-        graphics.fill(drawX, drawY, drawX + drawSize, drawY + drawSize, color);
-        graphics.outline(drawX, drawY, drawSize, drawSize, 0xFFFFFFFF);
     }
 
     @Override
