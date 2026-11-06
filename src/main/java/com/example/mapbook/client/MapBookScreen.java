@@ -5,6 +5,7 @@ import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.renderer.MapRenderer;
+import net.minecraft.core.component.DataComponents;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
@@ -72,7 +73,7 @@ graphics.text(this.font, Component.translatable("screen.mapbook.empty"),
         ItemStack currentMap = maps.get(currentPage);
         if (!currentMap.is(Items.FILLED_MAP)) return;
 
-        MapId mapId = MapItem.getMapId(currentMap);
+        MapId mapId = currentMap.get(DataComponents.MAP_ID);
         if (mapId == null || this.minecraft == null || this.minecraft.level == null) return;
 
         MapItemSavedData mapData = this.minecraft.level.getMapData(mapId);
