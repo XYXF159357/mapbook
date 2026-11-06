@@ -2,12 +2,14 @@ package com.example.mapbook.client;
 
 import com.example.mapbook.MapBookOpenPayload;
 import com.mojang.blaze3d.platform.InputConstants;
+import com.mojang.blaze3d.vertex.PoseStack;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.input.MouseButtonEvent;
 import net.minecraft.client.renderer.MapRenderer;
+import net.minecraft.client.renderer.SubmitNodeCollector;
 import net.minecraft.client.renderer.state.MapRenderState;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.network.chat.Component;
@@ -17,6 +19,7 @@ import net.minecraft.world.item.MapItem;
 import net.minecraft.world.level.saveddata.maps.MapId;
 import net.minecraft.world.level.saveddata.maps.MapItemSavedData;
 
+import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -40,9 +43,10 @@ public class MapBookScreen extends Screen {
     private Button zoomInButton;
     private Button zoomOutButton;
 
-    // 性能优化：缓存地图渲染状态，只更新玩家附近的地图
     private final Map<MapId, MapRenderState> renderStateCache = new HashMap<>();
     private MapRenderer mapRenderer;
+    private SubmitNodeCollector nodeCollector; // 反射获取的收集器
+
     private static final double UPDATE_RADIUS = 512.0;
 
     public MapBookScreen(List<ItemStack> maps, List<MapBookOpenPayload.MapCoord> coords) {
@@ -71,7 +75,37 @@ public class MapBookScreen extends Screen {
         addRenderableWidget(zoomOutButton);
     }
 
-    /** 打开 GUI 时，把玩家最近的地图居中显示 */
+    /** 尝试从 GuiGraphicsExtractor 中反射获取 SubmitNodeCollector */
+    private SubmitNodeCollector extractNodeCollector(GuiGraphicsExtractor graphics) {
+        if (nodeCollector != null) return nodeCollector;
+        // 尝试常见字段名；不同映射可能略有差异
+        String[] candidateFields = {"submitNodeCollector", "nodeCollector", "collector", "guiRenderState"};
+        for (String fieldName : candidateFields) {
+            try {
+                Field field = GuiGraphicsExtractor.class.getDeclaredField(fieldName);
+                field.setAccessible(true);
+                Object value = field.get(graphics);
+                if (value instanceof SubmitNodeCollector collector) {
+                    nodeCollector = collector;
+                    return collector;
+                }
+                // 如果字段是 GuiRenderState，尝试从中提取
+                if (value != null) {
+                    try {
+                        Field subField = value.getClass().getDeclaredField("submitNodeCollector");
+                        subField.setAccessible(true);
+                        Object sub = subField.get(value);
+                        if (sub instanceof SubmitNodeCollector collector) {
+                            nodeCollector = collector;
+                            return collector;
+                        }
+                    } catch (Exception ignored) {}
+                }
+            } catch (Exception ignored) {}
+        }
+        return null;
+    }
+
     private void centerOnPlayer() {
         if (this.minecraft == null || this.minecraft.player == null || coords.isEmpty()) return;
 
@@ -156,6 +190,9 @@ public class MapBookScreen extends Screen {
             return;
         }
 
+        // 尝试获取 SubmitNodeCollector（首次调用时反射获取，之后复用）
+        SubmitNodeCollector collector = extractNodeCollector(graphics);
+
         List<GridMap> gridMaps = new ArrayList<>();
         int minGridX = Integer.MAX_VALUE, maxGridX = Integer.MIN_VALUE;
         int minGridZ = Integer.MAX_VALUE, maxGridZ = Integer.MIN_VALUE;
@@ -195,36 +232,58 @@ public class MapBookScreen extends Screen {
             int drawY = (int)(screenCenterY - halfSize);
             int drawSize = (int)(128.0 * scale);
 
-            // --- 地图画面绘制部分（暂时回退为占位色块，等待 26.3 正确的 GUI 渲染 API）---
             ItemStack mapStack = maps.get(gm.index);
             MapId mapId = mapStack.get(DataComponents.MAP_ID);
-
-            // 即便不渲染，也保留缓存更新逻辑，为后续恢复渲染做准备
-            if (mapId != null && this.minecraft != null && this.minecraft.level != null) {
-                MapItemSavedData mapData = MapItem.getSavedData(mapId, this.minecraft.level);
-                if (mapData != null) {
-                    boolean nearPlayer = Math.abs(mapData.centerX - playerX) < UPDATE_RADIUS
-                            && Math.abs(mapData.centerZ - playerZ) < UPDATE_RADIUS;
-
-                    MapRenderState renderState = renderStateCache.get(mapId);
-                    if (renderState == null || nearPlayer) {
-                        renderState = new MapRenderState();
-                        mapRenderer.extractRenderState(mapId, mapData, renderState);
-                        renderStateCache.put(mapId, renderState);
-                    }
-                }
+            if (mapId == null || this.minecraft == null || this.minecraft.level == null) {
+                drawPlaceholder(graphics, gm, drawX, drawY, drawSize);
+                continue;
             }
 
-            // 绘制占位色块（保证界面正常可用）
-            int color = 0xFF000000 | ((gm.gridLeftX * 31 + gm.gridLeftZ * 17 + gm.index * 67) & 0xFFFFFF);
-            graphics.fill(drawX, drawY, drawX + drawSize, drawY + drawSize, color);
-            graphics.outline(drawX, drawY, drawSize, drawSize, 0xFFFFFFFF);
+            MapItemSavedData mapData = MapItem.getSavedData(mapId, this.minecraft.level);
+            if (mapData == null) {
+                drawPlaceholder(graphics, gm, drawX, drawY, drawSize);
+                continue;
+            }
+
+            // 提取渲染状态（带缓存与邻近更新优化）
+            boolean nearPlayer = Math.abs(mapData.centerX - playerX) < UPDATE_RADIUS
+                    && Math.abs(mapData.centerZ - playerZ) < UPDATE_RADIUS;
+            MapRenderState renderState = renderStateCache.get(mapId);
+            if (renderState == null || nearPlayer) {
+                renderState = new MapRenderState();
+                mapRenderer.extractRenderState(mapId, mapData, renderState);
+                renderStateCache.put(mapId, renderState);
+            }
+
+            // 方案一核心：直接调用 MapRenderer.render
+            if (collector != null && mapRenderer != null) {
+                try {
+                    PoseStack poseStack = graphics.pose();
+                    poseStack.pushPose();
+                    poseStack.translate(drawX, drawY, 0);
+                    poseStack.scale((float) drawSize / 128f, (float) drawSize / 128f, 1.0f);
+                    mapRenderer.render(renderState, poseStack, collector, true, 0xF000F0);
+                    poseStack.popPose();
+                } catch (Throwable t) {
+                    // 渲染失败时回退到占位色块，避免崩溃
+                    drawPlaceholder(graphics, gm, drawX, drawY, drawSize);
+                }
+            } else {
+                // 无法获取 SubmitNodeCollector 时回退
+                drawPlaceholder(graphics, gm, drawX, drawY, drawSize);
+            }
         }
 
         graphics.disableScissor();
 
         Component zoomText = Component.literal("缩放: " + String.format("%.0f%%", scale * 100));
         graphics.text(this.font, zoomText, 10, this.height - 25, 0xCCCCCC);
+    }
+
+    private void drawPlaceholder(GuiGraphicsExtractor graphics, GridMap gm, int drawX, int drawY, int drawSize) {
+        int color = 0xFF000000 | ((gm.gridLeftX * 31 + gm.gridLeftZ * 17 + gm.index * 67) & 0xFFFFFF);
+        graphics.fill(drawX, drawY, drawX + drawSize, drawY + drawSize, color);
+        graphics.outline(drawX, drawY, drawSize, drawSize, 0xFFFFFFFF);
     }
 
     @Override
