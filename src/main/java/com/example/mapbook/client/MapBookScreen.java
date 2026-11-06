@@ -14,6 +14,7 @@ import net.minecraft.client.renderer.texture.DynamicTexture;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.Identifier;
+import net.minecraft.util.TriState;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.MapItem;
 import net.minecraft.world.level.material.MapColor;
@@ -56,7 +57,7 @@ public class MapBookScreen extends Screen {
     protected void init() {
         super.init();
         bakeAllMapTextures();
-        centerOnPlayer(); // 补全的方法
+        centerOnPlayer();
 
         int buttonY = this.height - 30;
         zoomInButton = Button.builder(Component.literal("+"), b -> scale = Math.min(scale * 1.25, 4.0))
@@ -67,7 +68,6 @@ public class MapBookScreen extends Screen {
         addRenderableWidget(zoomOutButton);
     }
 
-    /** 自动居中到玩家最近的地图 */
     private void centerOnPlayer() {
         if (this.minecraft == null || this.minecraft.player == null || coords.isEmpty()) return;
 
@@ -128,9 +128,8 @@ public class MapBookScreen extends Screen {
         Identifier textureId = Identifier.fromNamespaceAndPath("mapbook", "dynamic/map_" + mapId.id());
         Minecraft.getInstance().getTextureManager().register(textureId, texture);
 
-        // 关键：设置为最近邻过滤，像素锐利、无半透明混合
         AbstractTexture abstractTexture = Minecraft.getInstance().getTextureManager().getTexture(textureId);
-        abstractTexture.setFilter(false, false);
+        abstractTexture.setFilter(TriState.FALSE, false);
 
         bakedTextures.put(mapId, textureId);
         dynamicTextures.put(mapId, texture);
@@ -208,11 +207,11 @@ public class MapBookScreen extends Screen {
         for (GridMap gm : gridMaps) {
             MapId mapId = maps.get(gm.index).get(DataComponents.MAP_ID);
             if (mapId == null || this.minecraft == null || this.minecraft.level == null) {
-                drawPlaceholder(graphics, gm); continue; // 补全的方法
+                drawPlaceholder(graphics, gm, gridCenterX, gridCenterZ); continue;
             }
 
             MapItemSavedData data = MapItem.getSavedData(mapId, this.minecraft.level);
-            if (data == null) { drawPlaceholder(graphics, gm); continue; }
+            if (data == null) { drawPlaceholder(graphics, gm, gridCenterX, gridCenterZ); continue; }
 
             boolean nearPlayer = Math.abs(data.centerX - playerX) < UPDATE_RADIUS
                     && Math.abs(data.centerZ - playerZ) < UPDATE_RADIUS;
@@ -226,7 +225,7 @@ public class MapBookScreen extends Screen {
             }
 
             Identifier textureId = bakedTextures.get(mapId);
-            if (textureId == null) { drawPlaceholder(graphics, gm); continue; }
+            if (textureId == null) { drawPlaceholder(graphics, gm, gridCenterX, gridCenterZ); continue; }
 
             double relX = gm.gridLeftX + 64 - gridCenterX;
             double relZ = gm.gridLeftZ + 64 - gridCenterZ;
@@ -234,7 +233,6 @@ public class MapBookScreen extends Screen {
             int drawX = (int)(this.width / 2.0 + offsetX + relX * scale - drawSize / 2.0);
             int drawY = (int)(this.height / 2.0 + offsetY + relZ * scale - drawSize / 2.0);
 
-            // 使用标准 GUI 纹理管线，像素化由纹理过滤设置保证
             graphics.blit(RenderPipelines.GUI_TEXTURED, textureId,
                     drawX, drawY, 0, 0, drawSize, drawSize, 128, 128);
         }
@@ -245,22 +243,15 @@ public class MapBookScreen extends Screen {
         graphics.text(this.font, zoomText, 10, this.height - 25, 0xCCCCCC);
     }
 
-    /** 占位色块（地图数据不可用时回退） */
-    private void drawPlaceholder(GuiGraphicsExtractor graphics, GridMap gm) {
+    private void drawPlaceholder(GuiGraphicsExtractor graphics, GridMap gm, double gridCenterX, double gridCenterZ) {
         int color = 0xFF000000 | ((gm.gridLeftX * 31 + gm.gridLeftZ * 17 + gm.index * 67) & 0xFFFFFF);
+        double relX = gm.gridLeftX + 64 - gridCenterX;
+        double relZ = gm.gridLeftZ + 64 - gridCenterZ;
         int drawSize = (int)(128.0 * scale);
-        double relX = gm.gridLeftX + 64 - (gm.gridLeftX + 64); // 简化计算，实际沿用居中逻辑
-        // 注意：占位块也需要和真实纹理一样应用居中偏移
-        // 为简洁起见，这里直接用和纹理相同的绘制坐标逻辑
-        // 实际使用时，请确保 drawPlaceholder 接收的坐标与 blit 一致
-        // 这里只做演示，实际请根据 gridMaps 的居中计算来绘制
-        // （下方保留完整坐标计算）
-        // ... 实际绘制时，将 centerOnPlayer 计算的偏移应用到占位块上
-        // 简化版：直接调用 fill，坐标由调用方传入更合适
-        // 但为了编译通过，这里先留空，实际渲染时占位块会显示在 (0,0) 附近
-        // 建议：把 drawPlaceholder 改成接收 drawX, drawY, drawSize 参数
-        // 临时修复：这里不绘制，避免位置错乱
-        // graphics.fill(drawX, drawY, drawX + drawSize, drawY + drawSize, color);
+        int drawX = (int)(this.width / 2.0 + offsetX + relX * scale - drawSize / 2.0);
+        int drawY = (int)(this.height / 2.0 + offsetY + relZ * scale - drawSize / 2.0);
+        graphics.fill(drawX, drawY, drawX + drawSize, drawY + drawSize, color);
+        graphics.outline(drawX, drawY, drawSize, drawSize, 0xFFFFFFFF);
     }
 
     @Override
