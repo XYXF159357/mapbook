@@ -1,18 +1,13 @@
 package com.example.mapbook.client;
 
-import com.example.mapbook.MapBookMod;
+import com.example.mapbook.MapBookOpenPayload;
 import com.mojang.blaze3d.platform.InputConstants;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.input.MouseButtonEvent;
-import net.minecraft.core.component.DataComponents;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.item.Items;
-import net.minecraft.world.item.MapItem;
-import net.minecraft.world.level.saveddata.maps.MapId;
-import net.minecraft.world.level.saveddata.maps.MapItemSavedData;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -20,6 +15,7 @@ import java.util.List;
 public class MapBookScreen extends Screen {
 
     private final List<ItemStack> maps;
+    private final List<MapBookOpenPayload.MapCoord> coords;
 
     private double offsetX = 0;
     private double offsetY = 0;
@@ -34,9 +30,10 @@ public class MapBookScreen extends Screen {
     private Button zoomInButton;
     private Button zoomOutButton;
 
-    public MapBookScreen(List<ItemStack> maps) {
+    public MapBookScreen(List<ItemStack> maps, List<MapBookOpenPayload.MapCoord> coords) {
         super(Component.translatable("screen.mapbook.title"));
         this.maps = maps;
+        this.coords = coords;
     }
 
     @Override
@@ -95,46 +92,37 @@ public class MapBookScreen extends Screen {
         graphics.text(this.font, this.title,
                 this.width / 2 - this.font.width(this.title) / 2, 10, 0xFFFFFF);
 
-        if (maps.isEmpty()) {
+        if (maps.isEmpty() || coords.isEmpty()) {
             Component empty = Component.translatable("screen.mapbook.empty");
             graphics.text(this.font, empty,
                     this.width / 2 - this.font.width(empty) / 2, this.height / 2, 0xAAAAAA);
             return;
         }
 
-        // 收集地图数据 + 计算对齐后的网格左边界
+        // 计算对齐后的网格左边界
         List<GridMap> gridMaps = new ArrayList<>();
         int minGridX = Integer.MAX_VALUE, maxGridX = Integer.MIN_VALUE;
         int minGridZ = Integer.MAX_VALUE, maxGridZ = Integer.MIN_VALUE;
 
-        for (ItemStack stack : maps) {
-            if (!stack.is(Items.FILLED_MAP)) continue;
-            MapId mapId = stack.get(DataComponents.MAP_ID);
-            if (mapId == null || this.minecraft == null || this.minecraft.level == null) continue;
-            MapItemSavedData data = MapItem.getSavedData(mapId, this.minecraft.level);
-            if (data == null) continue;
+        int count = Math.min(maps.size(), coords.size());
+        for (int i = 0; i < count; i++) {
+            MapBookOpenPayload.MapCoord c = coords.get(i);
+            int gridLeftX = Math.floorDiv(c.centerX() - 64, 128) * 128;
+            int gridLeftZ = Math.floorDiv(c.centerZ() - 64, 128) * 128;
 
-            // 关键：把地图左边界对齐到最近的 128 格网格
-            int gridLeftX = Math.floorDiv(data.centerX - 64, 128) * 128;
-            int gridLeftZ = Math.floorDiv(data.centerZ - 64, 128) * 128;
-
-            gridMaps.add(new GridMap(data, gridLeftX, gridLeftZ));
+            gridMaps.add(new GridMap(i, gridLeftX, gridLeftZ));
             minGridX = Math.min(minGridX, gridLeftX);
             maxGridX = Math.max(maxGridX, gridLeftX);
             minGridZ = Math.min(minGridZ, gridLeftZ);
             maxGridZ = Math.max(maxGridZ, gridLeftZ);
         }
 
-        if (gridMaps.isEmpty()) return;
-
-        // 网格范围的中心（左边界 + 128 = 中心点）
         double gridCenterX = (minGridX + maxGridX + 128) / 2.0;
         double gridCenterZ = (minGridZ + maxGridZ + 128) / 2.0;
 
         graphics.enableScissor(0, 25, this.width, this.height - 40);
 
         for (GridMap gm : gridMaps) {
-            // 相对网格中心的偏移（格），换算成屏幕像素（缩放后）
             double relX = gm.gridLeftX + 64 - gridCenterX;
             double relZ = gm.gridLeftZ + 64 - gridCenterZ;
 
@@ -146,7 +134,7 @@ public class MapBookScreen extends Screen {
             int drawY = (int)(screenCenterY - halfSize);
             int drawSize = (int)(128.0 * scale);
 
-            int color = 0xFF000000 | ((gm.gridLeftX * 31 + gm.gridLeftZ * 17) & 0xFFFFFF);
+            int color = 0xFF000000 | ((gm.gridLeftX * 31 + gm.gridLeftZ * 17 + gm.index * 67) & 0xFFFFFF);
             graphics.fill(drawX, drawY, drawX + drawSize, drawY + drawSize, color);
             graphics.outline(drawX, drawY, drawSize, drawSize, 0xFFFFFFFF);
         }
@@ -162,5 +150,5 @@ public class MapBookScreen extends Screen {
         return false;
     }
 
-    private record GridMap(MapItemSavedData data, int gridLeftX, int gridLeftZ) {}
+    private record GridMap(int index, int gridLeftX, int gridLeftZ) {}
 }
