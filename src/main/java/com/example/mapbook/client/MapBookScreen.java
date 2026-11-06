@@ -3,6 +3,7 @@ package com.example.mapbook.client;
 import com.example.mapbook.MapBookOpenPayload;
 import com.mojang.blaze3d.platform.InputConstants;
 import com.mojang.blaze3d.platform.NativeImage;
+import com.mojang.blaze3d.textures.FilterMode;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.Button;
@@ -126,7 +127,14 @@ public class MapBookScreen extends Screen {
         Identifier textureId = Identifier.fromNamespaceAndPath("mapbook", "dynamic/map_" + mapId.id());
         Minecraft.getInstance().getTextureManager().register(textureId, texture);
 
-        // 暂时移除了 setFilter 和 FilterMode 的调用，优先保证编译通过
+        // ====== 过滤设置：三选一 ======
+        // 方案一（当前）
+        if (texture.getGlTexture() != null) {
+            texture.getGlTexture().setTextureFilter(FilterMode.NEAREST, false);
+        }
+        // 方案二： texture.setFilter(false, false);
+        // 方案三： texture.setBlurMipmap(false, false);
+        // ==============================
 
         bakedTextures.put(mapId, textureId);
         dynamicTextures.put(mapId, texture);
