@@ -138,6 +138,7 @@ public class MapBookScreen extends Screen {
         graphics.pose().scale((float) scale, (float) scale);
 
         for (MapRenderEntry entry : entries) {
+            System.out.println("!!! Render map: centerX=" + entry.data().centerX + " centerZ=" + entry.data().centerZ);
             MapItemSavedData data = entry.data;
             double relX = data.centerX - worldCenterX;
             double relZ = data.centerZ - worldCenterZ;
