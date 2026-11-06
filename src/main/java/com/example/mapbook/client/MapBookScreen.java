@@ -14,7 +14,6 @@ import net.minecraft.client.renderer.texture.DynamicTexture;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.Identifier;
-import net.minecraft.util.TriState;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.MapItem;
 import net.minecraft.world.level.material.MapColor;
@@ -128,8 +127,9 @@ public class MapBookScreen extends Screen {
         Identifier textureId = Identifier.fromNamespaceAndPath("mapbook", "dynamic/map_" + mapId.id());
         Minecraft.getInstance().getTextureManager().register(textureId, texture);
 
+        // 关键修复：使用正确的 boolean 参数重载
         AbstractTexture abstractTexture = Minecraft.getInstance().getTextureManager().getTexture(textureId);
-        abstractTexture.setFilter(TriState.FALSE, false);
+        abstractTexture.setFilter(false, false);
 
         bakedTextures.put(mapId, textureId);
         dynamicTextures.put(mapId, texture);
