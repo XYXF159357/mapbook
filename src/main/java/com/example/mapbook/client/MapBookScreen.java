@@ -9,8 +9,8 @@ import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.input.MouseButtonEvent;
 import net.minecraft.client.renderer.RenderPipelines;
-import net.minecraft.client.renderer.texture.AbstractTexture;
-import net.minecraft.client.renderer.texture.DynamicTexture;
+import net.minecraft.client.texture.AbstractTexture; // ✅ 关键：包路径是 client.texture
+import net.minecraft.client.texture.DynamicTexture; // ✅ 关键：包路径是 client.texture
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.Identifier;
@@ -127,9 +127,9 @@ public class MapBookScreen extends Screen {
         Identifier textureId = Identifier.fromNamespaceAndPath("mapbook", "dynamic/map_" + mapId.id());
         Minecraft.getInstance().getTextureManager().register(textureId, texture);
 
-        // ✅ 修正 1：改为调用 setFilter（AbstractTexture 自带的方法）
-        // 第一个参数 false: 禁用双线性平滑（使用 Nearest 最近邻采样）
-        // 第二个参数 false: 禁用 mipmap（避免远端模糊）
+        // ✅ 修正导入后，直接调用 setFilter 即可
+        // false: 禁用双线性过滤（使用最近邻/Nearest采样）
+        // false: 禁用 mipmap
         ((AbstractTexture) texture).setFilter(false, false);
 
         bakedTextures.put(mapId, textureId);
