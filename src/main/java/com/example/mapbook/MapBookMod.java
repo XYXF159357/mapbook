@@ -83,13 +83,13 @@ public class MapBookMod implements ModInitializer {
                     offhand.shrink(1);
                     player.sendSystemMessage(Component.translatable("item.mapbook.map_book.stored"));
                 } else {
-                    // 【新增 3】副手没有地图 → 打开 GUI 或提示空册
                     List<ItemStack> stored = bookStack.get(MAP_LIST);
-                    if (stored != null && !stored.isEmpty()) {
-                        ServerPlayNetworking.send(serverPlayer, new MapBookOpenPayload());
-                    } else {
-                        player.sendSystemMessage(Component.translatable("item.mapbook.map_book.empty"));
-                    }
+if (stored != null && !stored.isEmpty()) {
+    // 关键修改：把 stored 列表放进包里
+    ServerPlayNetworking.send(serverPlayer, new MapBookOpenPayload(stored));
+} else {
+    player.sendSystemMessage(Component.translatable("item.mapbook.map_book.empty"));
+}
                 }
             }
             return InteractionResult.SUCCESS;
