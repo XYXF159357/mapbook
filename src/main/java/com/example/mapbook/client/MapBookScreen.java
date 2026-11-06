@@ -104,7 +104,7 @@ public class MapBookScreen extends Screen {
             return;
         }
 
-        // 收集地图数据
+        // 收集所有地图数据
         List<MapItemSavedData> dataList = new ArrayList<>();
         for (ItemStack stack : maps) {
             if (!stack.is(Items.FILLED_MAP)) continue;
@@ -116,7 +116,7 @@ public class MapBookScreen extends Screen {
 
         if (dataList.isEmpty()) return;
 
-        // 检查是否所有地图坐标完全相同
+        // 判断所有地图是否坐标完全相同
         boolean allCoordsSame = true;
         if (dataList.size() > 1) {
             MapItemSavedData first = dataList.get(0);
@@ -132,7 +132,7 @@ public class MapBookScreen extends Screen {
         graphics.enableScissor(0, 25, this.width, this.height - 40);
 
         if (allCoordsSame) {
-            // === 兜底：坐标全部相同 → 网格排列 ===
+            // === 兜底：坐标全相同 → 无缝网格排列 ===
             int cols = (int) Math.ceil(Math.sqrt(dataList.size()));
             int rows = (int) Math.ceil((double) dataList.size() / cols);
 
@@ -140,9 +140,9 @@ public class MapBookScreen extends Screen {
                 int row = i / cols;
                 int col = i % cols;
 
-                // 每格间距 140 像素（地图本身 128 + 12 间隙）
-                double gridX = (col - (cols - 1) / 2.0) * 140;
-                double gridY = (row - (rows - 1) / 2.0) * 140;
+                // 关键修改：间距 = 128，紧贴无缝
+                double gridX = (col - (cols - 1) / 2.0) * 128;
+                double gridY = (row - (rows - 1) / 2.0) * 128;
 
                 double screenCenterX = this.width / 2.0 + offsetX + gridX * scale;
                 double screenCenterY = this.height / 2.0 + offsetY + gridY * scale;
@@ -152,13 +152,12 @@ public class MapBookScreen extends Screen {
                 int drawY = (int)(screenCenterY - halfSize);
                 int drawSize = (int)(128.0 * scale);
 
-                // 用索引生成颜色，保证每张地图颜色不同
                 int color = 0xFF000000 | ((i * 67 + 100) & 0xFFFFFF);
                 graphics.fill(drawX, drawY, drawX + drawSize, drawY + drawSize, color);
                 graphics.outline(drawX, drawY, drawSize, drawSize, 0xFFFFFFFF);
             }
         } else {
-            // === 正常：按世界坐标拼接 ===
+            // === 正常：按真实世界坐标拼接，空缺位置自动留白 ===
             int minX = Integer.MAX_VALUE, maxX = Integer.MIN_VALUE;
             int minZ = Integer.MAX_VALUE, maxZ = Integer.MIN_VALUE;
             for (MapItemSavedData d : dataList) {
@@ -171,6 +170,7 @@ public class MapBookScreen extends Screen {
             double worldCenterZ = (minZ + maxZ) / 2.0;
 
             for (MapItemSavedData d : dataList) {
+                // 相对世界中心的偏移（世界格 = 屏幕上 128 格的边长）
                 double relX = d.centerX - worldCenterX;
                 double relZ = d.centerZ - worldCenterZ;
 
