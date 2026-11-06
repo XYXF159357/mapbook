@@ -1,9 +1,11 @@
 package com.example.mapbook.client;
 
 import com.example.mapbook.MapBookMod;
+import com.mojang.blaze3d.platform.InputConstants;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.client.input.MouseButtonEvent;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.item.ItemStack;
@@ -19,19 +21,16 @@ public class MapBookScreen extends Screen {
 
     private final List<ItemStack> maps;
 
-    // 视角偏移与缩放
     private double offsetX = 0;
     private double offsetY = 0;
     private double scale = 1.0;
 
-    // 拖动状态
     private boolean dragging = false;
     private double dragStartX;
     private double dragStartY;
     private double dragStartOffsetX;
     private double dragStartOffsetY;
 
-    // 按钮
     private Button zoomInButton;
     private Button zoomOutButton;
 
@@ -43,7 +42,6 @@ public class MapBookScreen extends Screen {
     @Override
     protected void init() {
         super.init();
-
         int buttonY = this.height - 30;
 
         zoomInButton = Button.builder(Component.literal("+"), b -> {
@@ -58,17 +56,17 @@ public class MapBookScreen extends Screen {
         addRenderableWidget(zoomOutButton);
     }
 
-    // ---------- 拖动 ----------
+    // ---------- 拖动（26.3 新签名）----------
 
     @Override
-    public boolean mouseClicked(double mouseX, double mouseY, int button) {
-        if (super.mouseClicked(mouseX, mouseY, button)) {
+    public boolean mouseClicked(MouseButtonEvent event, boolean doubleClick) {
+        if (super.mouseClicked(event, doubleClick)) {
             return true;
         }
-        if (button == 0) {
+        if (event.buttonInfo().button() == InputConstants.MOUSE_BUTTON_LEFT) {
             dragging = true;
-            dragStartX = mouseX;
-            dragStartY = mouseY;
+            dragStartX = event.x();
+            dragStartY = event.y();
             dragStartOffsetX = offsetX;
             dragStartOffsetY = offsetY;
             return true;
@@ -77,30 +75,29 @@ public class MapBookScreen extends Screen {
     }
 
     @Override
-    public boolean mouseDragged(double mouseX, double mouseY, int button, double deltaX, double deltaY) {
+    public boolean mouseDragged(MouseButtonEvent event, double dx, double dy) {
         if (dragging) {
-            offsetX = dragStartOffsetX + (mouseX - dragStartX);
-            offsetY = dragStartOffsetY + (mouseY - dragStartY);
+            offsetX = dragStartOffsetX + (event.x() - dragStartX);
+            offsetY = dragStartOffsetY + (event.y() - dragStartY);
             return true;
         }
-        return super.mouseDragged(mouseX, mouseY, button, deltaX, deltaY);
+        return super.mouseDragged(event, dx, dy);
     }
 
     @Override
-    public boolean mouseReleased(double mouseX, double mouseY, int button) {
-        if (button == 0) {
+    public boolean mouseReleased(MouseButtonEvent event) {
+        if (event.buttonInfo().button() == InputConstants.MOUSE_BUTTON_LEFT) {
             dragging = false;
         }
-        return super.mouseReleased(mouseX, mouseY, button);
+        return super.mouseReleased(event);
     }
 
-    // ---------- 渲染 ----------
+    // ---------- 渲染（保持不变）----------
 
     @Override
     public void extractRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float delta) {
         super.extractRenderState(graphics, mouseX, mouseY, delta);
 
-        // 标题
         graphics.text(this.font, this.title, this.width / 2 - this.font.width(this.title) / 2, 10, 0xFFFFFF);
 
         if (maps.isEmpty()) {
@@ -110,7 +107,6 @@ public class MapBookScreen extends Screen {
             return;
         }
 
-        // 收集所有地图数据，并计算世界坐标范围
         List<MapRenderEntry> entries = new ArrayList<>();
         int minX = Integer.MAX_VALUE, maxX = Integer.MIN_VALUE;
         int minZ = Integer.MAX_VALUE, maxZ = Integer.MIN_VALUE;
@@ -131,48 +127,36 @@ public class MapBookScreen extends Screen {
 
         if (entries.isEmpty()) return;
 
-        // 世界中心
         double worldCenterX = (minX + maxX) / 2.0;
         double worldCenterZ = (minZ + maxZ) / 2.0;
-
-        // 每格世界坐标对应的屏幕像素（基准值，再乘缩放）
         double basePixelsPerBlock = 1.0;
 
-        // 启用裁剪，防止地图画出 GUI 边界
         graphics.enableScissor(0, 25, this.width, this.height - 40);
 
         graphics.pose().pushMatrix();
-        // 以屏幕中心为原点，应用拖动偏移和缩放
         graphics.pose().translate((float)(this.width / 2 + offsetX), (float)(this.height / 2 + offsetY));
         graphics.pose().scale((float) scale, (float) scale);
 
         for (MapRenderEntry entry : entries) {
             MapItemSavedData data = entry.data;
-
-            // 地图中心相对世界中心的偏移（世界格）
             double relX = data.centerX - worldCenterX;
             double relZ = data.centerZ - worldCenterZ;
-
-            // 转为屏幕坐标（地图默认边长 128 格）
             double halfSizePx = 64 * basePixelsPerBlock;
             double centerPxX = relX * basePixelsPerBlock;
-            double centerPxY = relZ * basePixelsPerBlock; // Z 正方向向下
+            double centerPxY = relZ * basePixelsPerBlock;
 
             int drawX = (int)(centerPxX - halfSizePx);
             int drawY = (int)(centerPxY - halfSizePx);
             int sizePx = (int)(128 * basePixelsPerBlock);
 
-            // 占位方块：用地图 ID 的哈希生成不同颜色
             int color = 0xFF000000 | (data.centerX * 31 + data.centerZ * 17) & 0xFFFFFF;
             graphics.fill(drawX, drawY, drawX + sizePx, drawY + sizePx, color);
-            // 边框
             graphics.outline(drawX, drawY, sizePx, sizePx, 0xFFFFFFFF);
         }
 
         graphics.pose().popMatrix();
         graphics.disableScissor();
 
-        // 缩放提示
         Component zoomText = Component.literal("缩放: " + String.format("%.0f%%", scale * 100));
         graphics.text(this.font, zoomText, 10, this.height - 25, 0xCCCCCC);
     }
