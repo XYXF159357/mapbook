@@ -2,6 +2,9 @@
   "item.mapbook.map_book": "Map Book",
   "item.mapbook.map_book.used": "You received a map.",
   "item.mapbook.map_book.stored": "Map stored in your Map Book.",
-  "item.mapbook.map_book.need_map": "Put a filled map in your offhand to store it."
+  "item.mapbook.map_book.need_map": "Put a filled map in your offhand to store it.",
+  "screen.mapbook.title": "Map Book",
+  "screen.mapbook.empty": "No maps stored yet",
+  "item.mapbook.map_book.empty": "The Map Book is empty. Put a filled map in your offhand and right-click to store it."
 }
 
