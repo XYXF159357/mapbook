@@ -13,16 +13,11 @@ public class MapBookClient implements ClientModInitializer {
     @Override
     public void onInitializeClient() {
         ClientPlayNetworking.registerGlobalReceiver(MapBookOpenPayload.ID, (payload, context) -> {
-            context.client().execute(() -> {
-                if (context.player() == null) return;
-                ItemStack held = context.player().getMainHandItem();
-                if (!held.is(MapBookMod.MAP_BOOK)) return;
-
-                List<ItemStack> maps = held.get(MapBookMod.MAP_LIST);
-                if (maps == null || maps.isEmpty()) return;
-
-                context.client().gui.setScreen(new MapBookScreen(maps));
-            });
-        });
+    context.client().execute(() -> {
+        if (payload.maps() == null || payload.maps().isEmpty()) return;
+        // 直接使用网络包里的数据，不碰本地物品
+        context.client().gui.setScreen(new MapBookScreen(payload.maps()));
+    });
+});
     }
 }
