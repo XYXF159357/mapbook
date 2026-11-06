@@ -9,5 +9,6 @@
   "item.mapbook.map_book.invalid": "Could not read this map's data.",
   "item.mapbook.map_book.wrong_scale": "Only default-scale maps can be stored.",
   "item.mapbook.map_book.duplicate": "This map is already in the Map Book.",
-  "item.mapbook.map_book.different_dimension": "All maps in the book must come from the same dimension."
+  "item.mapbook.map_book.different_dimension": "All maps in the book must come from the same dimension.",
+  "item.mapbook.map_book.duplicate_position": "A map for this location is already stored."
 }
