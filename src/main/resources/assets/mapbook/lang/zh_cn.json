@@ -1,4 +1,7 @@
 {
   "item.mapbook.map_book": "地图册",
   "item.mapbook.map_book.used": "你获得了一张地图。"
+  "item.mapbook.map_book.stored": "地图已存入地图册。",
+  "item.mapbook.map_book.need_map": "副手需要持有一张已填充的地图才能存入。"
 }
+
