@@ -82,14 +82,6 @@ graphics.text(this.font, Component.translatable("screen.mapbook.empty"),
         int x = (this.width - size) / 2;
         int y = (this.height - size) / 2 - 20;
 
-        // 用原版 MapRenderer 把地图纹理绘制到 GUI 上
-        MapRenderer renderer = this.minecraft.gameRenderer.getMapRenderer();
-        graphics.pose().pushPose();
-        graphics.pose().translate(x, y, 0);
-        graphics.pose().scale(size / 128f, size / 128f, 1f);
-        renderer.render(graphics.pose(), graphics.bufferSource(), mapId, mapData, true, 0xF000F0);
-        graphics.pose().popPose();
-
         // 页码
 Component pageText = Component.literal((currentPage + 1) + " / " + maps.size());
 graphics.text(this.font, pageText, this.width / 2 - this.font.width(pageText) / 2,
