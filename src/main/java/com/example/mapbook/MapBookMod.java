@@ -61,35 +61,29 @@ public class MapBookMod implements ModInitializer {
 
         UseItemCallback.EVENT.register((player, level, hand) -> {
             ItemStack bookStack = player.getItemInHand(hand);
-            if (!bookStack.is(MAP_BOOK)) {
-                return InteractionResult.PASS;
-            }
+            if (!bookStack.is(MAP_BOOK)) return InteractionResult.PASS;
 
             if (!level.isClientSide()) {
-                if (!(player instanceof ServerPlayer serverPlayer)) {
-                    return InteractionResult.PASS;
-                }
+                if (!(player instanceof ServerPlayer serverPlayer)) return InteractionResult.PASS;
 
                 ItemStack offhand = player.getOffhandItem();
                 MinecraftServer server = serverPlayer.level().getServer();
                 if (server == null) return InteractionResult.PASS;
 
                 if (offhand.is(Items.FILLED_MAP)) {
-                    // 获取副手地图的 MapId
                     MapId newMapId = offhand.get(DataComponents.MAP_ID);
                     if (newMapId == null) {
                         player.sendSystemMessage(Component.translatable("item.mapbook.map_book.invalid"));
                         return InteractionResult.SUCCESS;
                     }
 
-                    // 在所有维度中查找地图数据
                     MapItemSavedData newData = findMapDataAnywhere(newMapId, server);
                     if (newData == null) {
                         player.sendSystemMessage(Component.translatable("item.mapbook.map_book.invalid"));
                         return InteractionResult.SUCCESS;
                     }
 
-                    // 条件 1：必须是默认大小（scale == 0）
+                    // 条件 1：默认大小
                     if (newData.scale != 0) {
                         player.sendSystemMessage(Component.translatable("item.mapbook.map_book.wrong_scale"));
                         return InteractionResult.SUCCESS;
@@ -98,20 +92,29 @@ public class MapBookMod implements ModInitializer {
                     List<ItemStack> maps = bookStack.get(MAP_LIST);
                     if (maps == null) maps = new ArrayList<>();
 
-                    // 条件 2：不能重复
+                    // 条件 2 + 3：遍历已存地图，检查 MapId 重复、坐标重复、维度
                     for (ItemStack stored : maps) {
                         MapId storedId = stored.get(DataComponents.MAP_ID);
+                        if (storedId == null) continue;
+
+                        // 2a：MapId 相同 → 同一张地图
                         if (newMapId.equals(storedId)) {
                             player.sendSystemMessage(Component.translatable("item.mapbook.map_book.duplicate"));
                             return InteractionResult.SUCCESS;
                         }
-                    }
 
-                    // 条件 3：必须与已存地图同维度
-                    if (!maps.isEmpty()) {
-                        MapId firstId = maps.get(0).get(DataComponents.MAP_ID);
-                        MapItemSavedData firstData = firstId == null ? null : findMapDataAnywhere(firstId, server);
-                        if (firstData != null && !newData.dimension.equals(firstData.dimension)) {
+                        MapItemSavedData storedData = findMapDataAnywhere(storedId, server);
+                        if (storedData == null) continue;
+
+                        // 2b：坐标相同 → 内容相同，视为重复
+                        if (storedData.centerX == newData.centerX
+                                && storedData.centerZ == newData.centerZ) {
+                            player.sendSystemMessage(Component.translatable("item.mapbook.map_book.duplicate_position"));
+                            return InteractionResult.SUCCESS;
+                        }
+
+                        // 3：维度不同
+                        if (!newData.dimension.equals(storedData.dimension)) {
                             player.sendSystemMessage(Component.translatable("item.mapbook.map_book.different_dimension"));
                             return InteractionResult.SUCCESS;
                         }
@@ -122,7 +125,6 @@ public class MapBookMod implements ModInitializer {
                     offhand.shrink(1);
                     player.sendSystemMessage(Component.translatable("item.mapbook.map_book.stored"));
                 } else {
-                    // 副手没有地图 → 打开 GUI
                     List<ItemStack> stored = bookStack.get(MAP_LIST);
                     if (stored != null && !stored.isEmpty()) {
                         ServerPlayNetworking.send(serverPlayer, new MapBookOpenPayload(stored));
@@ -135,7 +137,6 @@ public class MapBookMod implements ModInitializer {
         });
     }
 
-    /** 在所有已加载维度中查找某张地图的数据 */
     private static MapItemSavedData findMapDataAnywhere(MapId mapId, MinecraftServer server) {
         for (ServerLevel lvl : server.getAllLevels()) {
             MapItemSavedData data = MapItem.getSavedData(mapId, lvl);
