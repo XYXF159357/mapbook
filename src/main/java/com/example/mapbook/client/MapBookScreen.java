@@ -3,13 +3,13 @@ package com.example.mapbook.client;
 import com.example.mapbook.MapBookOpenPayload;
 import com.mojang.blaze3d.platform.InputConstants;
 import com.mojang.blaze3d.platform.NativeImage;
-import com.mojang.blaze3d.textures.FilterMode;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.input.MouseButtonEvent;
 import net.minecraft.client.renderer.RenderPipelines;
+import net.minecraft.client.renderer.texture.AbstractTexture;
 import net.minecraft.client.renderer.texture.DynamicTexture;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.network.chat.Component;
@@ -127,14 +127,8 @@ public class MapBookScreen extends Screen {
         Identifier textureId = Identifier.fromNamespaceAndPath("mapbook", "dynamic/map_" + mapId.id());
         Minecraft.getInstance().getTextureManager().register(textureId, texture);
 
-        // ====== 过滤设置：三选一 ======
-        // 方案一（当前）
-        if (texture.getGlTexture() != null) {
-            texture.getGlTexture().setTextureFilter(FilterMode.NEAREST, false);
-        }
-        // 方案二： texture.setFilter(false, false);
-        // 方案三： texture.setBlurMipmap(false, false);
-        // ==============================
+        // 关键：通过父类 AbstractTexture 设置最近邻过滤，不依赖 FilterMode
+        ((AbstractTexture) texture).setFilter(false, false);
 
         bakedTextures.put(mapId, textureId);
         dynamicTextures.put(mapId, texture);
