@@ -1,20 +1,20 @@
 package com.example.mapbook;
 
-import net.minecraft.network.RegistryByteBuf;
-import net.minecraft.network.codec.PacketCodec;
-import net.minecraft.network.packet.CustomPayload;
+import net.minecraft.network.RegistryFriendlyByteBuf;
+import net.minecraft.network.codec.StreamCodec;
+import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 import net.minecraft.resources.Identifier;
 
-public record MapBookOpenPayload() implements CustomPayload {
+public record MapBookOpenPayload() implements CustomPacketPayload {
 
-    public static final CustomPayload.Id<MapBookOpenPayload> ID =
-            new CustomPayload.Id<>(Identifier.fromNamespaceAndPath(MapBookMod.MOD_ID, "open_book"));
+    public static final CustomPacketPayload.Type<MapBookOpenPayload> ID =
+            new CustomPacketPayload.Type<>(Identifier.fromNamespaceAndPath(MapBookMod.MOD_ID, "open_book"));
 
-    public static final PacketCodec<RegistryByteBuf, MapBookOpenPayload> CODEC =
-            PacketCodec.unit(new MapBookOpenPayload());
+    public static final StreamCodec<RegistryFriendlyByteBuf, MapBookOpenPayload> CODEC =
+            StreamCodec.unit(new MapBookOpenPayload());
 
     @Override
-    public Id<? extends CustomPayload> getId() {
+    public CustomPacketPayload.Type<? extends CustomPacketPayload> type() {
         return ID;
     }
 }
