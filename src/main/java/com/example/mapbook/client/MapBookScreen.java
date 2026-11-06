@@ -177,4 +177,25 @@ public class MapBookScreen extends Screen {
                 double screenCenterX = this.width / 2.0 + offsetX + relX * scale;
                 double screenCenterY = this.height / 2.0 + offsetY + relZ * scale;
 
-                double halfSize = 64.0
+                double halfSize = 64.0 * scale;
+                int drawX = (int)(screenCenterX - halfSize);
+                int drawY = (int)(screenCenterY - halfSize);
+                int drawSize = (int)(128.0 * scale);
+
+                int color = 0xFF000000 | ((d.centerX * 31 + d.centerZ * 17) & 0xFFFFFF);
+                graphics.fill(drawX, drawY, drawX + drawSize, drawY + drawSize, color);
+                graphics.outline(drawX, drawY, drawSize, drawSize, 0xFFFFFFFF);
+            }
+        }
+
+        graphics.disableScissor();
+
+        Component zoomText = Component.literal("缩放: " + String.format("%.0f%%", scale * 100));
+        graphics.text(this.font, zoomText, 10, this.height - 25, 0xCCCCCC);
+    }
+
+    @Override
+    public boolean isPauseScreen() {
+        return false;
+    }
+}
