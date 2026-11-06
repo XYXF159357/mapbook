@@ -83,14 +83,14 @@ public class MapBookScreen extends Screen {
                 for (int x = 0; x < 128; x++) {
                     byte colorId = data.colors[x + y * 128];
                     if (colorId == 0) {
-                        image.setPixelRGBA(x, y, 0);
+                        image.setPixelABGR(x, y, 0);
                     } else {
                         int argb = MapColor.getColorFromPackedId(colorId);
                         int abgr = ((argb & 0xFF) << 24) |
                                    ((argb & 0xFF00) << 8) |
                                    ((argb & 0xFF0000) >> 8) |
                                    ((argb >> 24) & 0xFF);
-                        image.setPixelRGBA(x, y, abgr);
+                        image.setPixelABGR(x, y, abgr);
                     }
                 }
             }
