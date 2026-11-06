@@ -14,6 +14,7 @@ public class MapBookClient implements ClientModInitializer {
     public void onInitializeClient() {
         ClientPlayNetworking.registerGlobalReceiver(MapBookOpenPayload.ID, (payload, context) -> {
     context.client().execute(() -> {
+        System.out.println("!!! Client received maps: " + (payload.maps() == null ? "null" : payload.maps().size()));
         if (payload.maps() == null || payload.maps().isEmpty()) return;
         context.client().gui.setScreen(new MapBookScreen(payload.maps()));
     });
