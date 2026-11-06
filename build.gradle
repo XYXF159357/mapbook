@@ -14,8 +14,6 @@ repositories {
 
 dependencies {
     minecraft "com.mojang:minecraft:26.3"
-    // 关键：必须使用官方映射，而不是 yarn
-    mappings loom.officialMojangMappings() 
     implementation "net.fabricmc:fabric-loader:0.19.5"
     implementation "net.fabricmc.fabric-api:fabric-api:0.165.2+26.3"
 }
