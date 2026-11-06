@@ -42,7 +42,6 @@ public class MapBookScreen extends Screen {
     private Button zoomInButton;
     private Button zoomOutButton;
 
-    // 每张地图烘焙好的纹理
     private final Map<MapId, Identifier> bakedTextures = new HashMap<>();
     private final Map<MapId, DynamicTexture> dynamicTextures = new HashMap<>();
 
@@ -55,10 +54,7 @@ public class MapBookScreen extends Screen {
     @Override
     protected void init() {
         super.init();
-
-        // 关键步骤：打开 GUI 时一次性烘焙所有地图纹理
         bakeAllMapTextures();
-
         centerOnPlayer();
 
         int buttonY = this.height - 30;
@@ -70,7 +66,7 @@ public class MapBookScreen extends Screen {
         addRenderableWidget(zoomOutButton);
     }
 
-    /** 把每张地图的 colors 数组烘焙成 128×128 的 DynamicTexture */
+    /** 把每张地图烘焙成 128×128 的 DynamicTexture（仅执行一次） */
     private void bakeAllMapTextures() {
         if (this.minecraft == null || this.minecraft.level == null) return;
 
@@ -88,15 +84,16 @@ public class MapBookScreen extends Screen {
                 for (int x = 0; x < 128; x++) {
                     byte colorId = data.colors[x + y * 128];
                     if (colorId == 0) {
-                        image.setPixelRGBA(x, y, 0); // 透明
+                        image.setColor(x, y, 0); // 关键修改：setPixelRGBA → setColor
                     } else {
                         int argb = MapColor.getColorFromPackedId(colorId);
-                        image.setPixelRGBA(x, y, argb);
+                        image.setColor(x, y, argb); // 关键修改：setPixelRGBA → setColor
                     }
                 }
             }
 
-            DynamicTexture texture = new DynamicTexture(image);
+            // 关键修改：DynamicTexture 构造函数需要 Supplier<String> 标签
+            DynamicTexture texture = new DynamicTexture(() -> "mapbook_map_" + mapId.id(), image);
             Identifier textureId = Identifier.fromNamespaceAndPath(
                     "mapbook", "dynamic/map_" + mapId.id());
             Minecraft.getInstance().getTextureManager().register(textureId, texture);
@@ -229,7 +226,6 @@ public class MapBookScreen extends Screen {
             Identifier textureId = mapId != null ? bakedTextures.get(mapId) : null;
 
             if (textureId != null) {
-                // GPU 一次性绘制，取代逐像素 fill()
                 graphics.blit(RenderPipelines.GUI_TEXTURED, textureId,
                         drawX, drawY, 0, 0, drawSize, drawSize, 128, 128);
             } else {
@@ -251,7 +247,6 @@ public class MapBookScreen extends Screen {
 
     @Override
     public void removed() {
-        // 关闭 GUI 时释放纹理，避免显存泄漏
         for (DynamicTexture tex : dynamicTextures.values()) {
             tex.close();
         }
