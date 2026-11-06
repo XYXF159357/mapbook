@@ -3,7 +3,6 @@ package com.example.mapbook.client;
 import com.example.mapbook.MapBookOpenPayload;
 import com.mojang.blaze3d.platform.InputConstants;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.screens.Screen;
@@ -41,11 +40,9 @@ public class MapBookScreen extends Screen {
     private Button zoomInButton;
     private Button zoomOutButton;
 
-    // 地图渲染状态缓存，避免每帧重复提取
     private final Map<MapId, MapRenderState> renderStateCache = new HashMap<>();
     private MapRenderer mapRenderer;
 
-    // 玩家附近多少格内的地图需要实时更新渲染状态
     private static final double UPDATE_RADIUS = 512.0;
 
     public MapBookScreen(List<ItemStack> maps, List<MapBookOpenPayload.MapCoord> coords) {
@@ -57,11 +54,7 @@ public class MapBookScreen extends Screen {
     @Override
     protected void init() {
         super.init();
-
-        // 获取 MapRenderer（26.3 中通过 Minecraft 实例获取）
         this.mapRenderer = Minecraft.getInstance().getMapRenderer();
-
-        // 根据玩家位置自动居中
         centerOnPlayer();
 
         int buttonY = this.height - 30;
@@ -78,14 +71,12 @@ public class MapBookScreen extends Screen {
         addRenderableWidget(zoomOutButton);
     }
 
-    /** 打开 GUI 时，把玩家最近的地图居中显示 */
     private void centerOnPlayer() {
         if (this.minecraft == null || this.minecraft.player == null || coords.isEmpty()) return;
 
         double playerX = this.minecraft.player.getX();
         double playerZ = this.minecraft.player.getZ();
 
-        // 找到离玩家最近的已存地图
         int closestIndex = 0;
         double minDist = Double.MAX_VALUE;
         for (int i = 0; i < coords.size(); i++) {
@@ -97,7 +88,6 @@ public class MapBookScreen extends Screen {
             }
         }
 
-        // 计算网格中心
         int minGridX = Integer.MAX_VALUE, maxGridX = Integer.MIN_VALUE;
         int minGridZ = Integer.MAX_VALUE, maxGridZ = Integer.MIN_VALUE;
         for (MapBookOpenPayload.MapCoord c : coords) {
@@ -111,12 +101,10 @@ public class MapBookScreen extends Screen {
         double gridCenterX = (minGridX + maxGridX + 128) / 2.0;
         double gridCenterZ = (minGridZ + maxGridZ + 128) / 2.0;
 
-        // 离玩家最近那张地图的网格中心
         MapBookOpenPayload.MapCoord closest = coords.get(closestIndex);
         double mapCenterX = Math.floorDiv(closest.centerX() - 64, 128) * 128 + 64;
         double mapCenterZ = Math.floorDiv(closest.centerZ() - 64, 128) * 128 + 64;
 
-        // 令这张地图出现在屏幕中央，反推偏移量
         offsetX = -(mapCenterX - gridCenterX) * scale;
         offsetY = -(mapCenterZ - gridCenterZ) * scale;
     }
@@ -167,7 +155,6 @@ public class MapBookScreen extends Screen {
             return;
         }
 
-        // 计算所有地图的网格左边界
         List<GridMap> gridMaps = new ArrayList<>();
         int minGridX = Integer.MAX_VALUE, maxGridX = Integer.MIN_VALUE;
         int minGridZ = Integer.MAX_VALUE, maxGridZ = Integer.MIN_VALUE;
@@ -188,7 +175,6 @@ public class MapBookScreen extends Screen {
         double gridCenterX = (minGridX + maxGridX + 128) / 2.0;
         double gridCenterZ = (minGridZ + maxGridZ + 128) / 2.0;
 
-        // 玩家坐标（用于判断哪些地图需要实时更新）
         double playerX = this.minecraft != null && this.minecraft.player != null
                 ? this.minecraft.player.getX() : 0;
         double playerZ = this.minecraft != null && this.minecraft.player != null
@@ -208,11 +194,9 @@ public class MapBookScreen extends Screen {
             int drawY = (int)(screenCenterY - halfSize);
             int drawSize = (int)(128.0 * scale);
 
-            // 尝试绘制真实地图纹理
             ItemStack mapStack = maps.get(gm.index);
             MapId mapId = mapStack.get(DataComponents.MAP_ID);
             if (mapId == null || this.minecraft == null || this.minecraft.level == null) {
-                // 无法获取地图数据时，回退到占位色块
                 drawPlaceholder(graphics, gm, drawX, drawY, drawSize);
                 continue;
             }
@@ -223,7 +207,6 @@ public class MapBookScreen extends Screen {
                 continue;
             }
 
-            // 性能优化：只有玩家附近的地图才重新提取渲染状态
             boolean nearPlayer = Math.abs(mapData.centerX - playerX) < UPDATE_RADIUS
                     && Math.abs(mapData.centerZ - playerZ) < UPDATE_RADIUS;
 
@@ -234,14 +217,12 @@ public class MapBookScreen extends Screen {
                 renderStateCache.put(mapId, renderState);
             }
 
-            // 提交地图渲染
             graphics.pose().pushMatrix();
             graphics.pose().translate((float) drawX, (float) drawY);
             graphics.pose().scale((float) drawSize / 128f, (float) drawSize / 128f);
-            ((GuiGraphics) graphics).submitMapRenderState(renderState);
+            graphics.submitMapRenderState(renderState); // 直接调用，无需强制转换
             graphics.pose().popMatrix();
 
-            // 可选：在地图周围画一圈细边框，方便区分相邻地图
             graphics.outline(drawX, drawY, drawSize, drawSize, 0x40FFFFFF);
         }
 
@@ -251,7 +232,6 @@ public class MapBookScreen extends Screen {
         graphics.text(this.font, zoomText, 10, this.height - 25, 0xCCCCCC);
     }
 
-    /** 地图数据不可用时，绘制占位色块 */
     private void drawPlaceholder(GuiGraphicsExtractor graphics, GridMap gm, int drawX, int drawY, int drawSize) {
         int color = 0xFF000000 | ((gm.gridLeftX * 31 + gm.gridLeftZ * 17 + gm.index * 67) & 0xFFFFFF);
         graphics.fill(drawX, drawY, drawX + drawSize, drawY + drawSize, color);
