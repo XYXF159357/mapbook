@@ -1,10 +1,28 @@
-{
-  "item.mapbook.map_book": "Map Book",
-  "item.mapbook.map_book.used": "You received a map.",
-  "item.mapbook.map_book.stored": "Map stored in your Map Book.",
-  "item.mapbook.map_book.need_map": "Put a filled map in your offhand to store it.",
-  "screen.mapbook.title": "Map Book",
-  "screen.mapbook.empty": "No maps stored yet",
-  "item.mapbook.map_book.empty": "The Map Book is empty. Put a filled map in your offhand and right-click to store it."
-}
+package com.example.mapbook;
 
+import net.minecraft.network.RegistryFriendlyByteBuf;
+import net.minecraft.network.codec.ByteBufCodecs;
+import net.minecraft.network.codec.StreamCodec;
+import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
+import net.minecraft.resources.Identifier;
+import net.minecraft.world.item.ItemStack;
+
+import java.util.List;
+
+public record MapBookOpenPayload(List<ItemStack> maps) implements CustomPacketPayload {
+
+    public static final CustomPacketPayload.Type<MapBookOpenPayload> ID =
+            new CustomPacketPayload.Type<>(Identifier.fromNamespaceAndPath(MapBookMod.MOD_ID, "open_book"));
+
+    // 使用 ItemStack 的列表 StreamCodec 来序列化整个列表
+    public static final StreamCodec<RegistryFriendlyByteBuf, MapBookOpenPayload> CODEC =
+            StreamCodec.composite(
+                    ItemStack.LIST_STREAM_CODEC, MapBookOpenPayload::maps,
+                    MapBookOpenPayload::new
+            );
+
+    @Override
+    public CustomPacketPayload.Type<? extends CustomPacketPayload> type() {
+        return ID;
+    }
+}
