@@ -83,7 +83,6 @@ public class MapBookMod implements ModInitializer {
                         return InteractionResult.SUCCESS;
                     }
 
-                    // 条件 1：默认大小
                     if (newData.scale != 0) {
                         player.sendSystemMessage(Component.translatable("item.mapbook.map_book.wrong_scale"));
                         return InteractionResult.SUCCESS;
@@ -92,12 +91,10 @@ public class MapBookMod implements ModInitializer {
                     List<ItemStack> maps = bookStack.get(MAP_LIST);
                     if (maps == null) maps = new ArrayList<>();
 
-                    // 条件 2 + 3：遍历已存地图，检查 MapId 重复、坐标重复、维度
                     for (ItemStack stored : maps) {
                         MapId storedId = stored.get(DataComponents.MAP_ID);
                         if (storedId == null) continue;
 
-                        // 2a：MapId 相同 → 同一张地图
                         if (newMapId.equals(storedId)) {
                             player.sendSystemMessage(Component.translatable("item.mapbook.map_book.duplicate"));
                             return InteractionResult.SUCCESS;
@@ -106,14 +103,12 @@ public class MapBookMod implements ModInitializer {
                         MapItemSavedData storedData = findMapDataAnywhere(storedId, server);
                         if (storedData == null) continue;
 
-                        // 2b：坐标相同 → 内容相同，视为重复
                         if (storedData.centerX == newData.centerX
                                 && storedData.centerZ == newData.centerZ) {
                             player.sendSystemMessage(Component.translatable("item.mapbook.map_book.duplicate_position"));
                             return InteractionResult.SUCCESS;
                         }
 
-                        // 3：维度不同
                         if (!newData.dimension.equals(storedData.dimension)) {
                             player.sendSystemMessage(Component.translatable("item.mapbook.map_book.different_dimension"));
                             return InteractionResult.SUCCESS;
@@ -127,7 +122,22 @@ public class MapBookMod implements ModInitializer {
                 } else {
                     List<ItemStack> stored = bookStack.get(MAP_LIST);
                     if (stored != null && !stored.isEmpty()) {
-                        ServerPlayNetworking.send(serverPlayer, new MapBookOpenPayload(stored));
+                        // 关键修改：服务端算好坐标，随包发送
+                        List<MapBookOpenPayload.MapCoord> coords = new ArrayList<>();
+                        for (ItemStack s : stored) {
+                            MapId id = s.get(DataComponents.MAP_ID);
+                            if (id == null) {
+                                coords.add(new MapBookOpenPayload.MapCoord(0, 0));
+                                continue;
+                            }
+                            MapItemSavedData d = findMapDataAnywhere(id, server);
+                            if (d != null) {
+                                coords.add(new MapBookOpenPayload.MapCoord(d.centerX, d.centerZ));
+                            } else {
+                                coords.add(new MapBookOpenPayload.MapCoord(0, 0));
+                            }
+                        }
+                        ServerPlayNetworking.send(serverPlayer, new MapBookOpenPayload(stored, coords));
                     } else {
                         player.sendSystemMessage(Component.translatable("item.mapbook.map_book.empty"));
                     }
