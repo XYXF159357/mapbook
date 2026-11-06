@@ -58,12 +58,14 @@ public class MapBookScreen extends Screen {
     public void extractRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float delta) {
         super.extractRenderState(graphics, mouseX, mouseY, delta);
 
-        graphics.drawCenteredString(this.font, this.title, this.width / 2, 20, 0xFFFFFF);
+       // 标题
+     graphics.text(this.font, this.title, this.width / 2 - this.font.width(this.title) / 2, 20, 0xFFFFFF);
 
         if (maps.isEmpty()) {
-            graphics.drawCenteredString(this.font,
-                    Component.translatable("screen.mapbook.empty"),
-                    this.width / 2, this.height / 2, 0xAAAAAA);
+            // 空册提示
+graphics.text(this.font, Component.translatable("screen.mapbook.empty"),
+        this.width / 2 - this.font.width(Component.translatable("screen.mapbook.empty")) / 2,
+        this.height / 2, 0xAAAAAA);
             return;
         }
 
@@ -88,9 +90,10 @@ public class MapBookScreen extends Screen {
         renderer.render(graphics.pose(), graphics.bufferSource(), mapId, mapData, true, 0xF000F0);
         graphics.pose().popPose();
 
-        graphics.drawCenteredString(this.font,
-                Component.literal((currentPage + 1) + " / " + maps.size()),
-                this.width / 2, this.height - 20, 0xCCCCCC);
+        // 页码
+Component pageText = Component.literal((currentPage + 1) + " / " + maps.size());
+graphics.text(this.font, pageText, this.width / 2 - this.font.width(pageText) / 2,
+        this.height - 20, 0xCCCCCC);
     }
 
     @Override
