@@ -2,22 +2,27 @@ package com.example.mapbook.client;
 
 import com.example.mapbook.MapBookOpenPayload;
 import com.mojang.blaze3d.platform.InputConstants;
+import com.mojang.blaze3d.platform.NativeImage;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.input.MouseButtonEvent;
+import net.minecraft.client.renderer.RenderPipelines;
+import net.minecraft.client.renderer.texture.DynamicTexture;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.network.chat.Component;
+import net.minecraft.resources.Identifier;
 import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.item.Items;
 import net.minecraft.world.item.MapItem;
 import net.minecraft.world.level.material.MapColor;
 import net.minecraft.world.level.saveddata.maps.MapId;
 import net.minecraft.world.level.saveddata.maps.MapItemSavedData;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 public class MapBookScreen extends Screen {
 
@@ -37,6 +42,10 @@ public class MapBookScreen extends Screen {
     private Button zoomInButton;
     private Button zoomOutButton;
 
+    // 每张地图烘焙好的纹理
+    private final Map<MapId, Identifier> bakedTextures = new HashMap<>();
+    private final Map<MapId, DynamicTexture> dynamicTextures = new HashMap<>();
+
     public MapBookScreen(List<ItemStack> maps, List<MapBookOpenPayload.MapCoord> coords) {
         super(Component.translatable("screen.mapbook.title"));
         this.maps = maps;
@@ -46,20 +55,55 @@ public class MapBookScreen extends Screen {
     @Override
     protected void init() {
         super.init();
+
+        // 关键步骤：打开 GUI 时一次性烘焙所有地图纹理
+        bakeAllMapTextures();
+
         centerOnPlayer();
 
         int buttonY = this.height - 30;
-
-        zoomInButton = Button.builder(Component.literal("+"), b -> {
-            scale = Math.min(scale * 1.25, 4.0);
-        }).bounds(this.width - 80, buttonY, 20, 20).build();
-
-        zoomOutButton = Button.builder(Component.literal("-"), b -> {
-            scale = Math.max(scale / 1.25, 0.25);
-        }).bounds(this.width - 50, buttonY, 20, 20).build();
-
+        zoomInButton = Button.builder(Component.literal("+"), b -> scale = Math.min(scale * 1.25, 4.0))
+                .bounds(this.width - 80, buttonY, 20, 20).build();
+        zoomOutButton = Button.builder(Component.literal("-"), b -> scale = Math.max(scale / 1.25, 0.25))
+                .bounds(this.width - 50, buttonY, 20, 20).build();
         addRenderableWidget(zoomInButton);
         addRenderableWidget(zoomOutButton);
+    }
+
+    /** 把每张地图的 colors 数组烘焙成 128×128 的 DynamicTexture */
+    private void bakeAllMapTextures() {
+        if (this.minecraft == null || this.minecraft.level == null) return;
+
+        for (int i = 0; i < Math.min(maps.size(), coords.size()); i++) {
+            ItemStack stack = maps.get(i);
+            MapId mapId = stack.get(DataComponents.MAP_ID);
+            if (mapId == null || bakedTextures.containsKey(mapId)) continue;
+
+            MapItemSavedData data = MapItem.getSavedData(mapId, this.minecraft.level);
+            if (data == null) continue;
+
+            NativeImage image = new NativeImage(NativeImage.Format.RGBA, 128, 128, true);
+
+            for (int y = 0; y < 128; y++) {
+                for (int x = 0; x < 128; x++) {
+                    byte colorId = data.colors[x + y * 128];
+                    if (colorId == 0) {
+                        image.setPixelRGBA(x, y, 0); // 透明
+                    } else {
+                        int argb = MapColor.getColorFromPackedId(colorId);
+                        image.setPixelRGBA(x, y, argb);
+                    }
+                }
+            }
+
+            DynamicTexture texture = new DynamicTexture(image);
+            Identifier textureId = Identifier.fromNamespaceAndPath(
+                    "mapbook", "dynamic/map_" + mapId.id());
+            Minecraft.getInstance().getTextureManager().register(textureId, texture);
+
+            bakedTextures.put(mapId, textureId);
+            dynamicTextures.put(mapId, texture);
+        }
     }
 
     private void centerOnPlayer() {
@@ -155,7 +199,6 @@ public class MapBookScreen extends Screen {
             MapBookOpenPayload.MapCoord c = coords.get(i);
             int gridLeftX = Math.floorDiv(c.centerX() - 64, 128) * 128;
             int gridLeftZ = Math.floorDiv(c.centerZ() - 64, 128) * 128;
-
             gridMaps.add(new GridMap(i, gridLeftX, gridLeftZ));
             minGridX = Math.min(minGridX, gridLeftX);
             maxGridX = Math.max(maxGridX, gridLeftX);
@@ -183,13 +226,12 @@ public class MapBookScreen extends Screen {
             ItemStack mapStack = maps.get(gm.index);
             MapId mapId = mapStack.get(DataComponents.MAP_ID);
 
-            MapItemSavedData mapData = null;
-            if (mapId != null && this.minecraft != null && this.minecraft.level != null) {
-                mapData = MapItem.getSavedData(mapId, this.minecraft.level);
-            }
+            Identifier textureId = mapId != null ? bakedTextures.get(mapId) : null;
 
-            if (mapData != null) {
-                drawMapPixels(graphics, mapData, drawX, drawY, drawSize);
+            if (textureId != null) {
+                // GPU 一次性绘制，取代逐像素 fill()
+                graphics.blit(RenderPipelines.GUI_TEXTURED, textureId,
+                        drawX, drawY, 0, 0, drawSize, drawSize, 128, 128);
             } else {
                 drawPlaceholder(graphics, gm, drawX, drawY, drawSize);
             }
@@ -201,32 +243,21 @@ public class MapBookScreen extends Screen {
         graphics.text(this.font, zoomText, 10, this.height - 25, 0xCCCCCC);
     }
 
-    /** 逐像素绘制地图纹理（方案二） */
-    private void drawMapPixels(GuiGraphicsExtractor graphics, MapItemSavedData mapData,
-                               int drawX, int drawY, int drawSize) {
-        if (drawSize < 1) return;
-
-        int pixelSize = Math.max(1, drawSize / 128);
-        int offsetX = drawX + (drawSize - 128 * pixelSize) / 2;
-        int offsetY = drawY + (drawSize - 128 * pixelSize) / 2;
-
-        for (int py = 0; py < 128; py++) {
-            for (int px = 0; px < 128; px++) {
-                byte colorId = mapData.colors[px + py * 128];
-                if (colorId == 0) continue; // 透明像素跳过
-
-                int argb = MapColor.getColorFromPackedId(colorId);
-                int x1 = offsetX + px * pixelSize;
-                int y1 = offsetY + py * pixelSize;
-                graphics.fill(x1, y1, x1 + pixelSize, y1 + pixelSize, argb);
-            }
-        }
-    }
-
     private void drawPlaceholder(GuiGraphicsExtractor graphics, GridMap gm, int drawX, int drawY, int drawSize) {
         int color = 0xFF000000 | ((gm.gridLeftX * 31 + gm.gridLeftZ * 17 + gm.index * 67) & 0xFFFFFF);
         graphics.fill(drawX, drawY, drawX + drawSize, drawY + drawSize, color);
         graphics.outline(drawX, drawY, drawSize, drawSize, 0xFFFFFFFF);
+    }
+
+    @Override
+    public void removed() {
+        // 关闭 GUI 时释放纹理，避免显存泄漏
+        for (DynamicTexture tex : dynamicTextures.values()) {
+            tex.close();
+        }
+        dynamicTextures.clear();
+        bakedTextures.clear();
+        super.removed();
     }
 
     @Override
