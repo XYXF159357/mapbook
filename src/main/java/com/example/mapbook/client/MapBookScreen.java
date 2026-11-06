@@ -3,6 +3,7 @@ package com.example.mapbook.client;
 import com.example.mapbook.MapBookOpenPayload;
 import com.mojang.blaze3d.platform.InputConstants;
 import com.mojang.blaze3d.platform.NativeImage;
+import com.mojang.blaze3d.systems.RenderSystem; // 确保导入
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.Button;
@@ -127,8 +128,10 @@ public class MapBookScreen extends Screen {
         Identifier textureId = Identifier.fromNamespaceAndPath("mapbook", "dynamic/map_" + mapId.id());
         Minecraft.getInstance().getTextureManager().register(textureId, texture);
 
-        // 使用 setBlurMipmap 关闭模糊和 mipmap，实现最近邻采样
-        ((AbstractTexture) texture).setBlurMipmap(false, false);
+        // 关键修正：通过 RenderSystem 提交到渲染线程，并尝试 (true, false) 参数
+        RenderSystem.recordRenderCall(() -> {
+            ((AbstractTexture) texture).setFilter(true, false);
+        });
 
         bakedTextures.put(mapId, textureId);
         dynamicTextures.put(mapId, texture);
