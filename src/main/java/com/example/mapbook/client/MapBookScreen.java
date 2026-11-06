@@ -3,13 +3,13 @@ package com.example.mapbook.client;
 import com.example.mapbook.MapBookOpenPayload;
 import com.mojang.blaze3d.platform.InputConstants;
 import com.mojang.blaze3d.platform.NativeImage;
+import com.mojang.blaze3d.textures.FilterMode; // ✅ 导入 FilterMode
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.input.MouseButtonEvent;
 import net.minecraft.client.renderer.RenderPipelines;
-import net.minecraft.client.renderer.texture.AbstractTexture;
 import net.minecraft.client.renderer.texture.DynamicTexture;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.network.chat.Component;
@@ -127,8 +127,8 @@ public class MapBookScreen extends Screen {
         Identifier textureId = Identifier.fromNamespaceAndPath("mapbook", "dynamic/map_" + mapId.id());
         Minecraft.getInstance().getTextureManager().register(textureId, texture);
 
-        // 关键：关闭双线性过滤和 mipmap，使用最近邻采样
-        ((AbstractTexture) texture).setFilter(false, false);
+        // ✅ 核心修正：通过 GpuTexture 设置最近邻过滤
+        texture.getGlTexture().setTextureFilter(FilterMode.NEAREST, false);
 
         bakedTextures.put(mapId, textureId);
         dynamicTextures.put(mapId, texture);
