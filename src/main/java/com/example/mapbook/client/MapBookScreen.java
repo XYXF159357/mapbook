@@ -72,7 +72,7 @@ graphics.text(this.font, Component.translatable("screen.mapbook.empty"),
         ItemStack currentMap = maps.get(currentPage);
         if (!currentMap.is(Items.FILLED_MAP)) return;
 
-        MapId mapId = currentMap.get(MapItemSavedData.MAP_ID);
+        MapId mapId = MapItem.getMapId(currentMap);
         if (mapId == null || this.minecraft == null || this.minecraft.level == null) return;
 
         MapItemSavedData mapData = this.minecraft.level.getMapData(mapId);
