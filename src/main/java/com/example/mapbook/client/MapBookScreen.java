@@ -9,8 +9,8 @@ import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.input.MouseButtonEvent;
 import net.minecraft.client.renderer.RenderPipelines;
-import net.minecraft.client.texture.AbstractTexture; // ✅ 关键修正：包路径改为 client.texture
-import net.minecraft.client.texture.DynamicTexture; // ✅ 关键修正：同步修改
+import net.minecraft.client.renderer.texture.AbstractTexture;
+import net.minecraft.client.renderer.texture.DynamicTexture;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.Identifier;
@@ -127,7 +127,7 @@ public class MapBookScreen extends Screen {
         Identifier textureId = Identifier.fromNamespaceAndPath("mapbook", "dynamic/map_" + mapId.id());
         Minecraft.getInstance().getTextureManager().register(textureId, texture);
 
-        // ✅ 修正导入后，直接调用 setFilter 即可
+        // Mojang 映射下 setFilter 可用，关闭双线性过滤和 mipmap
         ((AbstractTexture) texture).setFilter(false, false);
 
         bakedTextures.put(mapId, textureId);
